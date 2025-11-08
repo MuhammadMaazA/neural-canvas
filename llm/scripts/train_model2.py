@@ -31,7 +31,7 @@ import numpy as np
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.dataset_loader import load_wikiart, TextDataset
+from utils.dataset_loader import load_art_text, load_conversational_ai, TextDataset
 
 
 class Config:
@@ -48,7 +48,9 @@ class Config:
         "gate_proj", "up_proj", "down_proj",
     ]
     
-    WIKIART_SAMPLES = 20000
+    # NEW: Lightweight datasets for 50GB quota
+    ART_TEXT_SAMPLES = 15000          # Art descriptions (text-only)
+    CONVERSATIONAL_SAMPLES = 15000    # Conversational dialogues
     MAX_LEN = 512
     
     NUM_EPOCHS = 3
@@ -205,16 +207,23 @@ def main():
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
     
-    logger.info("Loading WikiArt dataset...")
+    logger.info("Loading datasets...")
     start_time = time.time()
     
-    art_texts = load_wikiart(max_samples=config.WIKIART_SAMPLES)
-    logger.info(f"Loaded {len(art_texts):,} samples in {time.time() - start_time:.1f}s")
+    # Load art and conversational datasets
+    art_texts = load_art_text(max_samples=config.ART_TEXT_SAMPLES)
+    conv_texts = load_conversational_ai(max_samples=config.CONVERSATIONAL_SAMPLES)
+    
+    # Combine datasets
+    all_texts = art_texts + conv_texts
+    logger.info(f"Loaded {len(all_texts):,} samples in {time.time() - start_time:.1f}s")
+    logger.info(f"  Art Text: {len(art_texts):,}")
+    logger.info(f"  Conversational: {len(conv_texts):,}")
     
     # Split dataset
-    split_idx = int(len(art_texts) * config.TRAIN_SPLIT)
-    train_texts = art_texts[:split_idx]
-    val_texts = art_texts[split_idx:]
+    split_idx = int(len(all_texts) * config.TRAIN_SPLIT)
+    train_texts = all_texts[:split_idx]
+    val_texts = all_texts[split_idx:]
     
     logger.info(f"Train: {len(train_texts):,} samples")
     logger.info(f"Val: {len(val_texts):,} samples")

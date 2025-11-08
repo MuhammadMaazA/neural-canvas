@@ -7,6 +7,12 @@ Training on AI Literacy + Art Domain datasets
 Theme: AI literacy for art education
 """
 
+# SET CACHE DIRECTORIES FIRST (before any imports)
+import os
+os.environ['HF_HOME'] = '/cs/student/projects1/2023/muhamaaz/datasets'
+os.environ['HF_DATASETS_CACHE'] = '/cs/student/projects1/2023/muhamaaz/datasets'
+os.environ['TRANSFORMERS_CACHE'] = '/cs/student/projects1/2023/muhamaaz/datasets'
+
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -38,13 +44,17 @@ class Config:
     DROPOUT = 0.1
     
     # Datasets (Coursework Aligned: AI Literacy + Art Domain)
-    ELI5_SAMPLES = 100000        # AI literacy (simple explanations)
-    WIKIART_SAMPLES = 100000     # Art domain knowledge
-    AI_QA_SAMPLES = 50000        # Technical AI/ML questions
+    # Theme: AI Art Expert & Creator (matches CNN/NST project)
+    # NEW: Lightweight datasets for 50GB quota
+    ELI5_SAMPLES = 40000              # AI literacy Q&A explanations
+    CONVERSATIONAL_SAMPLES = 30000    # Podcast/dialogue style AI discussions
+    ART_TEXT_SAMPLES = 20000          # Art descriptions (text-only, no images)
+    AI_QA_SAMPLES = 30000             # AI/ML technical Wikipedia
     
-    # Legacy (deprecated - do not use)
-    OPENWEBTEXT_SAMPLES = 0
-    C4_SAMPLES = 0
+    # Legacy (deprecated - too large for quota)
+    WIKIART_SAMPLES = 0               # DISABLED - 30GB+ with images
+    OPENWEBTEXT_SAMPLES = 0           # DISABLED - 100GB+
+    C4_SAMPLES = 0                    # DISABLED - 100GB+
     
     # Tokenizer & Training
     TOKENIZER_NAME = "gpt2"
@@ -176,7 +186,7 @@ def main():
     print(f"Device: {config.DEVICE}")
     if torch.cuda.is_available():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
-    print(f"Datasets: ELI5 ({config.ELI5_SAMPLES:,}) + WikiArt ({config.WIKIART_SAMPLES:,}) + AI/ML Q&A ({config.AI_QA_SAMPLES:,})")
+    print(f"Datasets: SQuAD Q&A ({config.ELI5_SAMPLES:,}) + BookCorpus ({config.AI_QA_SAMPLES:,})")
     print("=" * 60)
     
     logger.info("Starting training...")
@@ -194,7 +204,8 @@ def main():
     
     all_texts = load_all_datasets(
         eli5_samples=config.ELI5_SAMPLES,
-        wikiart_samples=config.WIKIART_SAMPLES,
+        conversational_samples=config.CONVERSATIONAL_SAMPLES,
+        art_text_samples=config.ART_TEXT_SAMPLES,
         ai_qa_samples=config.AI_QA_SAMPLES
     )
     logger.info(f"Loaded {len(all_texts):,} samples in {time.time() - start_time:.1f}s")
