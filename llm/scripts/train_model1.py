@@ -1,9 +1,10 @@
 """
 Model 1: Transformer from Scratch
-UCL COMP0220 Coursework
+UCL COMP0220 Coursework - AI Art Expert & Creator
 
 Modern architecture: RoPE, RMSNorm, GQA, SwiGLU
-Training on OpenWebText, C4, WikiArt
+Training on AI Literacy + Art Domain datasets
+Theme: AI literacy for art education
 """
 
 import torch
@@ -27,7 +28,8 @@ from utils.model_evaluator import evaluate_model, calculate_perplexity
 
 
 class Config:
-    """Training configuration"""
+    """Training configuration - AI Art Expert & Creator"""
+    # Model Architecture
     DIM = 1024
     N_LAYERS = 12
     N_HEADS = 16
@@ -35,10 +37,16 @@ class Config:
     MAX_SEQ_LEN = 2048
     DROPOUT = 0.1
     
-    OPENWEBTEXT_SAMPLES = 250000
-    C4_SAMPLES = 250000
-    WIKIART_SAMPLES = 0
+    # Datasets (Coursework Aligned: AI Literacy + Art Domain)
+    ELI5_SAMPLES = 100000        # AI literacy (simple explanations)
+    WIKIART_SAMPLES = 100000     # Art domain knowledge
+    AI_QA_SAMPLES = 50000        # Technical AI/ML questions
     
+    # Legacy (deprecated - do not use)
+    OPENWEBTEXT_SAMPLES = 0
+    C4_SAMPLES = 0
+    
+    # Tokenizer & Training
     TOKENIZER_NAME = "gpt2"
     MAX_LEN = 512
     
@@ -162,11 +170,13 @@ def main():
     
     print("=" * 60)
     print("Model 1: Transformer from Scratch")
-    print("UCL COMP0220 Coursework")
+    print("UCL COMP0220 Coursework - AI Art Expert & Creator")
+    print("Theme: AI Literacy + Art Domain")
     print("=" * 60)
     print(f"Device: {config.DEVICE}")
     if torch.cuda.is_available():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
+    print(f"Datasets: ELI5 ({config.ELI5_SAMPLES:,}) + WikiArt ({config.WIKIART_SAMPLES:,}) + AI/ML Q&A ({config.AI_QA_SAMPLES:,})")
     print("=" * 60)
     
     logger.info("Starting training...")
@@ -183,9 +193,9 @@ def main():
     start_time = time.time()
     
     all_texts = load_all_datasets(
-        openwebtext_samples=config.OPENWEBTEXT_SAMPLES,
-        c4_samples=config.C4_SAMPLES,
-        wikiart_samples=config.WIKIART_SAMPLES
+        eli5_samples=config.ELI5_SAMPLES,
+        wikiart_samples=config.WIKIART_SAMPLES,
+        ai_qa_samples=config.AI_QA_SAMPLES
     )
     logger.info(f"Loaded {len(all_texts):,} samples in {time.time() - start_time:.1f}s")
     
