@@ -61,7 +61,7 @@ class Config:
     MAX_LEN = 512
     
     NUM_EPOCHS = 30
-    BATCH_SIZE = 2
+    BATCH_SIZE = 8
     LEARNING_RATE = 1e-4
     WEIGHT_DECAY = 0.01
     GRAD_CLIP = 1.0
@@ -118,6 +118,68 @@ def save_checkpoint(model, optimizer, scheduler, epoch, loss, tokenizer, config,
     }
     torch.save(checkpoint, filepath)
     logging.info(f"Checkpoint saved: {filepath}")
+
+
+def load_latest_checkpoint(checkpoint_dir: str):
+    """Find and load the latest checkpoint"""
+    if not os.path.exists(checkpoint_dir):
+        return None
+    
+    # Look for checkpoint files
+    checkpoints = [f for f in os.listdir(checkpoint_dir) if f.startswith('checkpoint_epoch_') and f.endswith('.pt')]
+    
+    if not checkpoints:
+        return None
+    
+    # Sort by epoch number
+    checkpoints.sort(key=lambda x: int(x.split('_')[-1].replace('.pt', '')))
+    latest = checkpoints[-1]
+    latest_path = os.path.join(checkpoint_dir, latest)
+    
+    logging.info(f"Found checkpoint: {latest}")
+    return torch.load(latest_path, map_location='cpu')
+
+
+def load_checkpoint(checkpoint_path: str, model, optimizer=None, scheduler=None):
+    """Load checkpoint and resume training"""
+    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    model.load_state_dict(checkpoint['model_state_dict'])
+    
+    start_epoch = checkpoint['epoch'] + 1
+    
+    if optimizer and 'optimizer_state_dict' in checkpoint:
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    
+    if scheduler and checkpoint.get('scheduler_state_dict'):
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+    
+    logging.info(f"Resumed from epoch {checkpoint['epoch']}, loss: {checkpoint['loss']:.4f}")
+    return start_epoch
+
+
+def find_latest_checkpoint(checkpoint_dir: str):
+    """Find the latest checkpoint in directory"""
+    if not os.path.exists(checkpoint_dir):
+        return None
+    
+    checkpoints = [f for f in os.listdir(checkpoint_dir) if f.startswith('checkpoint_epoch_') and f.endswith('.pt')]
+    if not checkpoints:
+        return None
+    
+    # Extract epoch numbers and find the latest
+    epochs = []
+    for cp in checkpoints:
+        try:
+            epoch_num = int(cp.replace('checkpoint_epoch_', '').replace('.pt', ''))
+            epochs.append((epoch_num, cp))
+        except:
+            continue
+    
+    if not epochs:
+        return None
+    
+    latest = max(epochs, key=lambda x: x[0])
+    return os.path.join(checkpoint_dir, latest[1])
 
 
 def create_lr_scheduler(optimizer, num_training_steps: int, warmup_steps: int = 1000):
@@ -257,6 +319,35 @@ def main():
         model.parameters(),
         lr=config.LEARNING_RATE,
         weight_decay=config.WEIGHT_DECAY,
+        betas=(0.9, 0.95)
+    )
+    
+    # Learning rate scheduler
+    num_training_steps = len(train_loader) * config.NUM_EPOCHS
+    scheduler = create_lr_scheduler(optimizer, num_training_steps, config.WARMUP_STEPS)
+    
+    # Try to resume from checkpoint
+    start_epoch = 0
+    best_val_loss = float('inf')
+    checkpoint = load_latest_checkpoint(config.CHECKPOINT_DIR)
+    
+    if checkpoint:
+        logger.info(f"Resuming from epoch {checkpoint['epoch'] + 1}")
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if checkpoint['scheduler_state_dict']:
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        start_epoch = checkpoint['epoch'] + 1
+        best_val_loss = checkpoint['loss']
+        logger.info(f"Resumed from epoch {start_epoch}, best loss: {best_val_loss:.4f}")
+    else:
+        logger.info("Starting training from scratch")
+    
+    # Loss function
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=config.LEARNING_RATE,
+        weight_decay=config.WEIGHT_DECAY,
         betas=(0.9, 0.95),
         eps=1e-8
     )
@@ -265,12 +356,14 @@ def main():
     num_training_steps = len(train_loader) * config.NUM_EPOCHS
     scheduler = create_lr_scheduler(optimizer, num_training_steps, config.WARMUP_STEPS)
     
+    # Loss function
+    criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
+    
     # Training loop
-    best_val_loss = float('inf')
     training_start = time.time()
     global_step = 0
     
-    for epoch in range(config.NUM_EPOCHS):
+    for epoch in range(start_epoch, config.NUM_EPOCHS):
         epoch_start = time.time()
         
         logger.info(f"\nEpoch {epoch+1}/{config.NUM_EPOCHS}")
