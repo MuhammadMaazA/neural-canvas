@@ -1,6 +1,15 @@
 """
 GPT-2 Style Transformer built from scratch
-For UCL COMP0220 Coursework - Model 1
+UCL COMP0220 Coursework - Model 1: Transformer FROM SCRATCH
+
+This module implements a complete GPT-2 style decoder-only transformer
+for conversational AI and AI literacy education.
+
+Architecture Features:
+- Multi-head self-attention with causal masking
+- Position-wise feed-forward networks
+- Layer normalization and residual connections
+- Dropout regularization
 """
 
 import torch
