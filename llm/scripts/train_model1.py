@@ -24,6 +24,9 @@ from datetime import datetime
 from tqdm import tqdm
 import numpy as np
 from transformers import AutoTokenizer
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend
+import matplotlib.pyplot as plt
 
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -97,7 +100,8 @@ def setup_logging(log_dir: str = "logs"):
     return logging.getLogger(__name__)
 
 
-def save_checkpoint(model, optimizer, scheduler, epoch, loss, tokenizer, config, filepath: str):
+def save_checkpoint(model, optimizer, scheduler, epoch, loss, tokenizer, config, filepath: str, 
+                   train_losses=None, val_losses=None, val_perplexities=None):
     """Save checkpoint for modern transformer"""
     checkpoint = {
         'epoch': epoch,
@@ -106,6 +110,9 @@ def save_checkpoint(model, optimizer, scheduler, epoch, loss, tokenizer, config,
         'scheduler_state_dict': scheduler.state_dict() if scheduler else None,
         'loss': loss,
         'tokenizer_name': config.TOKENIZER_NAME,
+        'train_losses': train_losses or [],
+        'val_losses': val_losses or [],
+        'val_perplexities': val_perplexities or [],
         'config': {
             'dim': config.DIM,
             'n_layers': config.N_LAYERS,
@@ -200,7 +207,7 @@ def train_epoch(model, dataloader, optimizer, scheduler, device, grad_clip: floa
     total_loss = 0
     num_batches = 0
     
-    pbar = tqdm(dataloader, desc="Training")
+    pbar = tqdm(dataloader, desc="Epoch")
     for batch_idx, (inputs, targets) in enumerate(pbar):
         inputs = inputs.to(device)
         targets = targets.to(device)
@@ -214,18 +221,75 @@ def train_epoch(model, dataloader, optimizer, scheduler, device, grad_clip: floa
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
         optimizer.step()
+        scheduler.step()
         
         total_loss += loss.item()
         num_batches += 1
-        pbar.set_postfix({'loss': f"{loss.item():.4f}"})
+        
+        current_lr = scheduler.get_last_lr()[0]
+        pbar.set_postfix({'loss': f"{loss.item():.4f}", 'lr': f"{current_lr:.6f}"})
         
         if batch_idx % 100 == 0:
-            logger.info(f"Batch {batch_idx}/{len(dataloader)}, Loss: {loss.item():.4f}")
+            logger.info(f"Step {batch_idx + num_batches}, Loss: {loss.item():.4f}, LR: {current_lr:.6f}")
     
     avg_loss = total_loss / num_batches if num_batches > 0 else 0
-    scheduler.step()
     
     return avg_loss
+
+
+def validate_epoch(model, dataloader, device):
+    """Validate model on validation set"""
+    model.eval()
+    total_loss = 0
+    num_batches = 0
+    
+    with torch.no_grad():
+        for inputs, targets in tqdm(dataloader, desc="Validation"):
+            inputs = inputs.to(device)
+            targets = targets.to(device)
+            
+            logits, loss = model(inputs, targets)
+            
+            if loss is None:
+                continue
+            
+            total_loss += loss.item()
+            num_batches += 1
+    
+    avg_loss = total_loss / num_batches if num_batches > 0 else float('inf')
+    perplexity = np.exp(avg_loss) if avg_loss < 100 else float('inf')
+    
+    return avg_loss, perplexity
+
+
+def plot_training_curves(train_losses, val_losses, val_perplexities, save_path):
+    """Plot and save training curves"""
+    epochs = range(1, len(train_losses) + 1)
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+    
+    # Plot losses
+    ax1.plot(epochs, train_losses, 'b-', label='Train Loss', linewidth=2)
+    ax1.plot(epochs, val_losses, 'r-', label='Val Loss', linewidth=2)
+    ax1.set_xlabel('Epoch', fontsize=12)
+    ax1.set_ylabel('Loss', fontsize=12)
+    ax1.set_title('Training and Validation Loss', fontsize=14, fontweight='bold')
+    ax1.legend(fontsize=10)
+    ax1.grid(True, alpha=0.3)
+    
+    # Plot perplexity
+    ax2.plot(epochs, val_perplexities, 'g-', label='Val Perplexity', linewidth=2)
+    ax2.set_xlabel('Epoch', fontsize=12)
+    ax2.set_ylabel('Perplexity', fontsize=12)
+    ax2.set_title('Validation Perplexity', fontsize=14, fontweight='bold')
+    ax2.legend(fontsize=10)
+    ax2.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"\nTraining curves saved to: {save_path}")
+
 
 
 def validate(model, dataloader, device, vocab_size: int):
@@ -319,45 +383,48 @@ def main():
         model.parameters(),
         lr=config.LEARNING_RATE,
         weight_decay=config.WEIGHT_DECAY,
-        betas=(0.9, 0.95)
+        betas=(0.9, 0.95),
+        eps=1e-8
     )
     
-    # Learning rate scheduler
+    # Learning rate schedulers
     num_training_steps = len(train_loader) * config.NUM_EPOCHS
-    scheduler = create_lr_scheduler(optimizer, num_training_steps, config.WARMUP_STEPS)
+    warmup_scheduler = create_lr_scheduler(optimizer, num_training_steps, config.WARMUP_STEPS)
+    
+    # Plateau scheduler - reduces LR when validation loss plateaus
+    plateau_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, 
+        mode='min', 
+        factor=0.5, 
+        patience=3, 
+        verbose=True,
+        min_lr=1e-6
+    )
     
     # Try to resume from checkpoint
     start_epoch = 0
     best_val_loss = float('inf')
+    train_losses = []
+    val_losses = []
+    val_perplexities = []
+    
     checkpoint = load_latest_checkpoint(config.CHECKPOINT_DIR)
     
     if checkpoint:
         logger.info(f"Resuming from epoch {checkpoint['epoch'] + 1}")
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        if checkpoint['scheduler_state_dict']:
-            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        if checkpoint.get('scheduler_state_dict'):
+            warmup_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
-        best_val_loss = checkpoint['loss']
+        best_val_loss = checkpoint.get('loss', float('inf'))
+        # Try to load training history
+        train_losses = checkpoint.get('train_losses', [])
+        val_losses = checkpoint.get('val_losses', [])
+        val_perplexities = checkpoint.get('val_perplexities', [])
         logger.info(f"Resumed from epoch {start_epoch}, best loss: {best_val_loss:.4f}")
     else:
         logger.info("Starting training from scratch")
-    
-    # Loss function
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=config.LEARNING_RATE,
-        weight_decay=config.WEIGHT_DECAY,
-        betas=(0.9, 0.95),
-        eps=1e-8
-    )
-    
-    # Scheduler with step-based warmup
-    num_training_steps = len(train_loader) * config.NUM_EPOCHS
-    scheduler = create_lr_scheduler(optimizer, num_training_steps, config.WARMUP_STEPS)
-    
-    # Loss function
-    criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
     
     # Training loop
     training_start = time.time()
@@ -389,7 +456,7 @@ def main():
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), config.GRAD_CLIP)
             optimizer.step()
-            scheduler.step()
+            warmup_scheduler.step()
             
             total_loss += loss.item()
             num_batches += 1
@@ -401,53 +468,77 @@ def main():
                 logger.info(f"Step {global_step}, Loss: {loss.item():.4f}, LR: {optimizer.param_groups[0]['lr']:.6f}")
         
         train_loss = total_loss / num_batches if num_batches > 0 else 0
+        train_losses.append(train_loss)
         
-        # Validate
-        if (epoch + 1) % config.EVAL_INTERVAL == 0:
-            model.eval()
-            val_loss = 0
-            val_batches = 0
-            
-            with torch.no_grad():
-                for inputs, targets in tqdm(val_loader, desc="Validation"):
-                    inputs = inputs.to(config.DEVICE)
-                    targets = targets.to(config.DEVICE)
-                    
-                    logits, loss = model(inputs, targets)
-                    if loss is not None:
-                        val_loss += loss.item()
-                        val_batches += 1
-            
-            val_loss = val_loss / val_batches if val_batches > 0 else float('inf')
-            val_perplexity = np.exp(val_loss)
-        else:
-            val_loss = float('inf')
-            val_perplexity = float('inf')
+        # Validate every epoch
+        model.eval()
+        val_loss = 0
+        val_batches = 0
+        
+        with torch.no_grad():
+            for inputs, targets in tqdm(val_loader, desc="Validation"):
+                inputs = inputs.to(config.DEVICE)
+                targets = targets.to(config.DEVICE)
+                
+                logits, loss = model(inputs, targets)
+                if loss is not None:
+                    val_loss += loss.item()
+                    val_batches += 1
+        
+        val_loss = val_loss / val_batches if val_batches > 0 else float('inf')
+        val_perplexity = np.exp(val_loss) if val_loss < 100 else float('inf')
+        val_losses.append(val_loss)
+        val_perplexities.append(val_perplexity)
+        
+        # Step plateau scheduler based on validation loss
+        plateau_scheduler.step(val_loss)
         
         current_lr = optimizer.param_groups[0]['lr']
         epoch_time = time.time() - epoch_start
         
+        # Print to terminal with clear formatting
+        print("\n" + "=" * 70)
+        print(f"EPOCH {epoch+1}/{config.NUM_EPOCHS} COMPLETED")
+        print("=" * 70)
+        print(f"Train Loss:      {train_loss:.4f}")
+        print(f"Val Loss:        {val_loss:.4f}")
+        print(f"Val Perplexity:  {val_perplexity:.2f}")
+        print(f"Learning Rate:   {current_lr:.6f}")
+        print(f"Epoch Time:      {epoch_time/60:.1f} min")
+        print("=" * 70 + "\n")
+        
         logger.info(f"Epoch {epoch+1} Results:")
         logger.info(f"  Train Loss: {train_loss:.4f}")
-        if val_perplexity < float('inf'):
-            logger.info(f"  Val Loss: {val_loss:.4f}")
-            logger.info(f"  Val Perplexity: {val_perplexity:.2f}")
+        logger.info(f"  Val Loss: {val_loss:.4f}")
+        logger.info(f"  Val Perplexity: {val_perplexity:.2f}")
         logger.info(f"  Learning Rate: {current_lr:.6f}")
         logger.info(f"  Time: {epoch_time/60:.1f} min")
         
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_path = os.path.join(config.CHECKPOINT_DIR, "model1_best.pt")
-            save_checkpoint(model, optimizer, scheduler, epoch, val_loss, tokenizer, config, best_path)
+            save_checkpoint(model, optimizer, warmup_scheduler, epoch, val_loss, tokenizer, config, best_path,
+                          train_losses, val_losses, val_perplexities)
             logger.info(f"New best model: Perplexity {val_perplexity:.2f}")
         
-        # Save periodic
+        # Save periodic checkpoint with training history
         if (epoch + 1) % config.CHECKPOINT_INTERVAL == 0:
             checkpoint_path = os.path.join(config.CHECKPOINT_DIR, f"checkpoint_epoch_{epoch+1}.pt")
-            save_checkpoint(model, optimizer, scheduler, epoch, val_loss, tokenizer, config, checkpoint_path)
+            save_checkpoint(model, optimizer, warmup_scheduler, epoch, val_loss, tokenizer, config, checkpoint_path,
+                          train_losses, val_losses, val_perplexities)
+            
+            # Save training plot
+            plot_path = os.path.join(config.CHECKPOINT_DIR, "training_curves.png")
+            plot_training_curves(train_losses, val_losses, val_perplexities, plot_path)
     
+    # Final save with plot
     final_path = os.path.join(config.CHECKPOINT_DIR, "model1_final.pt")
-    save_checkpoint(model, optimizer, scheduler, config.NUM_EPOCHS-1, best_val_loss, tokenizer, config, final_path)
+    save_checkpoint(model, optimizer, warmup_scheduler, config.NUM_EPOCHS-1, best_val_loss, tokenizer, config, final_path,
+                   train_losses, val_losses, val_perplexities)
+    
+    # Final plot
+    plot_path = os.path.join(config.CHECKPOINT_DIR, "training_curves_final.png")
+    plot_training_curves(train_losses, val_losses, val_perplexities, plot_path)
     
     total_time = time.time() - training_start
     logger.info(f"Training complete: {total_time/3600:.2f} hours")
