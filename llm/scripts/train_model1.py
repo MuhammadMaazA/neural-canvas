@@ -44,7 +44,7 @@ class Config:
     N_HEADS = 16
     N_KV_HEADS = 4
     MAX_SEQ_LEN = 2048
-    DROPOUT = 0.2  # INCREASED from 0.1 to 0.2 to reduce overfitting
+    DROPOUT = 0.15  # Moderate dropout (0.2 was too much, 0.1 was too little)
     
     # Datasets (Coursework Aligned: AI Literacy + Art Domain)
     # Theme: AI Art Expert & Creator (matches CNN/NST project)
@@ -60,11 +60,11 @@ class Config:
     
     NUM_EPOCHS = 30
     BATCH_SIZE = 8
-    LEARNING_RATE = 5e-5  # REDUCED from 1e-4 to 5e-5 to prevent overfitting
-    WEIGHT_DECAY = 0.05   # INCREASED from 0.01 to 0.05 for stronger L2 regularization
+    LEARNING_RATE = 8e-5  # Balanced: not too high, not too low
+    WEIGHT_DECAY = 0.02   # Moderate regularization
     GRAD_CLIP = 1.0
     WARMUP_STEPS = 2000
-    LABEL_SMOOTHING = 0.1  # NEW: Add label smoothing to prevent overconfidence
+    LABEL_SMOOTHING = 0.05  # Light label smoothing (was too aggressive at 0.1)
     
     TRAIN_SPLIT = 0.95
     VAL_SPLIT = 0.05

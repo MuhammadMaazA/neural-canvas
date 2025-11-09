@@ -28,13 +28,13 @@ class TextDataset(Dataset):
     
     def _augment_text(self, text: str) -> str:
         """Apply random text augmentation to reduce overfitting"""
-        if not self.augment or random.random() > 0.3:  # 30% chance of augmentation
+        if not self.augment or random.random() > 0.2:  # Only 20% chance (was 30%)
             return text
         
-        # Random dropout: randomly drop 5-10% of words
+        # Random dropout: randomly drop only 3-5% of words (was 5-10%)
         words = text.split()
-        if len(words) > 10 and random.random() < 0.5:
-            drop_ratio = random.uniform(0.05, 0.1)
+        if len(words) > 10 and random.random() < 0.3:  # Less frequent (was 0.5)
+            drop_ratio = random.uniform(0.03, 0.05)  # Less aggressive
             num_keep = max(5, int(len(words) * (1 - drop_ratio)))
             indices = sorted(random.sample(range(len(words)), num_keep))
             words = [words[i] for i in indices]
