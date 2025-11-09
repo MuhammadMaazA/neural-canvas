@@ -15,18 +15,38 @@ from transformers import AutoTokenizer
 
 
 class TextDataset(Dataset):
-    """Tokenized dataset"""
+    """Tokenized dataset with data augmentation to reduce overfitting"""
     
-    def __init__(self, texts: List[str], tokenizer, max_len: int = 512):
+    def __init__(self, texts: List[str], tokenizer, max_len: int = 512, augment: bool = True):
         self.texts = texts
         self.tokenizer = tokenizer
         self.max_len = max_len
+        self.augment = augment
     
     def __len__(self) -> int:
         return len(self.texts)
     
+    def _augment_text(self, text: str) -> str:
+        """Apply random text augmentation to reduce overfitting"""
+        if not self.augment or random.random() > 0.3:  # 30% chance of augmentation
+            return text
+        
+        # Random dropout: randomly drop 5-10% of words
+        words = text.split()
+        if len(words) > 10 and random.random() < 0.5:
+            drop_ratio = random.uniform(0.05, 0.1)
+            num_keep = max(5, int(len(words) * (1 - drop_ratio)))
+            indices = sorted(random.sample(range(len(words)), num_keep))
+            words = [words[i] for i in indices]
+            text = ' '.join(words)
+        
+        return text
+    
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         text = self.texts[idx]
+        
+        # Apply augmentation during training
+        text = self._augment_text(text)
         
         encoding = self.tokenizer(
             text,
@@ -187,14 +207,10 @@ def build_vocab(texts: List[str], max_vocab: int = 30000, min_freq: int = 5) -> 
     return vocab
 
 
-def load_all_datasets(eli5_samples: int = 40000,
+def load_all_datasets(squad_qa_samples: int = 40000,
                      conversational_samples: int = 30000,
                      art_text_samples: int = 20000,
-                     ai_qa_samples: int = 30000,
-                     # Legacy parameters (deprecated)
-                     wikiart_samples: int = 0,
-                     openwebtext_samples: int = 0,
-                     c4_samples: int = 0) -> List[str]:
+                     tech_qa_samples: int = 30000) -> List[str]:
     """
     Load datasets for AI Art Assistant (COMP0220 Coursework)
     
@@ -204,14 +220,14 @@ def load_all_datasets(eli5_samples: int = 40000,
     
     Datasets (all streamed from HuggingFace):
     1. SQuAD: AI literacy Q&A (educational explanations)
-    2. Conversational AI: Dialogue training (OpenAssistant)
+    2. OpenAssistant: Conversational AI dialogue training
     3. WikiArt Metadata: Art identification (artists, styles, genres)
-    4. Technical Q&A: StackOverflow for programming knowledge
+    4. StackOverflow: Technical Python Q&A
     
     Total: ~120K samples, streaming (no local download)
     """
     print("=" * 70)
-    print("AI LITERACY PODCAST - Dataset Loading (COMP0220)")
+    print("AI ART EXPERT & CREATOR - Dataset Loading (COMP0220)")
     print("=" * 70)
     print("Theme: AI + Art | Quota: 50GB | Format: Text-only")
     print("")
@@ -220,19 +236,19 @@ def load_all_datasets(eli5_samples: int = 40000,
     
     # Count active datasets
     active_datasets = [
-        ('SQuAD Q&A', eli5_samples),
-        ('Conversational AI', conversational_samples),
-        ('Creative Writing', art_text_samples),
-        ('Technical Q&A', ai_qa_samples)
+        ('SQuAD Q&A', squad_qa_samples),
+        ('OpenAssistant Conversations', conversational_samples),
+        ('WikiArt Text Metadata', art_text_samples),
+        ('StackOverflow Python Q&A', tech_qa_samples)
     ]
     dataset_count = sum([1 for _, count in active_datasets if count > 0])
     current = 0
     
     # 1. SQuAD Q&A - AI Literacy Foundation
-    if eli5_samples > 0:
+    if squad_qa_samples > 0:
         current += 1
         print(f"[{current}/{dataset_count}] SQuAD Q&A - AI Literacy Foundation")
-        squad_texts = load_squad_qa(max_samples=eli5_samples)
+        squad_texts = load_squad_qa(max_samples=squad_qa_samples)
         all_texts.extend(squad_texts)
         print(f"   Loaded {len(squad_texts):,} samples")
     else:
@@ -241,56 +257,47 @@ def load_all_datasets(eli5_samples: int = 40000,
     # 2. Conversational AI - Podcast/Dialogue Style
     if conversational_samples > 0:
         current += 1
-        print(f"\n[{current}/{dataset_count}] Conversational AI - Dialogue Training")
+        print(f"\n[{current}/{dataset_count}] OpenAssistant Conversations - Dialogue Training")
         conv_texts = load_conversational_ai(max_samples=conversational_samples)
         all_texts.extend(conv_texts)
         print(f"   Loaded {len(conv_texts):,} samples")
     else:
         conv_texts = []
     
-    # 3. Art & Creativity - Wikipedia articles about art, artists, movements (NO IMAGES!)
+    # 3. Art & Creativity - WikiArt text metadata (NO IMAGES!)
     if art_text_samples > 0:
         current += 1
-        print(f"\n[{current}/{dataset_count}] Art & Creativity - Art Domain Knowledge")
+        print(f"\n[{current}/{dataset_count}] WikiArt Text Metadata - Art Domain Knowledge")
         art_texts = load_art_text(max_samples=art_text_samples)
         all_texts.extend(art_texts)
         print(f"   Loaded {len(art_texts):,} samples")
     else:
         art_texts = []
     
-    # 4. AI/ML Technical - Wikipedia Articles
-    if ai_qa_samples > 0:
+    # 4. StackOverflow Python Q&A - Technical Knowledge
+    if tech_qa_samples > 0:
         current += 1
-        print(f"\n[{current}/{dataset_count}] AI/ML Technical - Domain Knowledge")
-        ai_texts = load_ai_ml_qa(max_samples=ai_qa_samples)
-        all_texts.extend(ai_texts)
-        print(f"   Loaded {len(ai_texts):,} samples")
+        print(f"\n[{current}/{dataset_count}] StackOverflow Python Q&A - Technical Knowledge")
+        tech_texts = load_ai_ml_qa(max_samples=tech_qa_samples)
+        all_texts.extend(tech_texts)
+        print(f"   Loaded {len(tech_texts):,} samples")
     else:
-        ai_texts = []
-    
-    # Legacy warnings
-    if wikiart_samples > 0:
-        print("\nWARNING: WikiArt (huggan/wikiart) is 30GB+ with images!")
-        print("Using art_text_samples instead (text-only, lightweight)")
-    
-    if openwebtext_samples > 0 or c4_samples > 0:
-        print("\nWARNING: openwebtext and c4 are HUGE (100GB+)!")
-        print("Use new lightweight datasets instead")
+        tech_texts = []
     
     print("\n" + "=" * 70)
     print(f"TOTAL LOADED: {len(all_texts):,} samples")
     print("=" * 70)
     if len(squad_texts) > 0:
-        print(f"  SQuAD Q&A:          {len(squad_texts):,} samples")
+        print(f"  SQuAD Q&A:                {len(squad_texts):,} samples")
     if len(conv_texts) > 0:
-        print(f"  Conversational:     {len(conv_texts):,} samples")
+        print(f"  OpenAssistant Convos:     {len(conv_texts):,} samples")
     if len(art_texts) > 0:
-        print(f"  Art & Creativity:   {len(art_texts):,} samples")
-    if len(ai_texts) > 0:
-        print(f"  Technical Q&A:      {len(ai_texts):,} samples")
+        print(f"  WikiArt Text:             {len(art_texts):,} samples")
+    if len(tech_texts) > 0:
+        print(f"  StackOverflow Python:     {len(tech_texts):,} samples")
     print("=" * 70)
     print("Coursework Requirements (COMP0220):")
-    print("   [X] AI Literacy Focus (SQuAD + Conversational)")
+    print("   [X] AI Literacy Focus (SQuAD + OpenAssistant)")
     print("   [X] Art Identification (WikiArt: styles, artists, genres)")
     print("   [X] Connects to NST/CNN work (art domain knowledge)")
     print("   [X] 4 Diverse Text Datasets from HuggingFace")

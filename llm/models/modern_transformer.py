@@ -144,11 +144,13 @@ class ModernTransformer(nn.Module):
         n_heads: int = 16,
         n_kv_heads: int = 4,
         max_len: int = 2048,
-        dropout: float = 0.1
+        dropout: float = 0.1,
+        label_smoothing: float = 0.0
     ):
         super().__init__()
         self.vocab_size = vocab_size
         self.dim = dim
+        self.label_smoothing = label_smoothing
         
         self.token_emb = nn.Embedding(vocab_size, dim)
         self.dropout = nn.Dropout(dropout)
@@ -191,7 +193,8 @@ class ModernTransformer(nn.Module):
             loss = F.cross_entropy(
                 shift_logits.view(-1, self.vocab_size),
                 shift_targets.view(-1),
-                ignore_index=0
+                ignore_index=0,
+                label_smoothing=self.label_smoothing  # Add label smoothing to prevent overconfidence
             )
         
         return logits, loss

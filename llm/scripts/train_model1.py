@@ -44,20 +44,15 @@ class Config:
     N_HEADS = 16
     N_KV_HEADS = 4
     MAX_SEQ_LEN = 2048
-    DROPOUT = 0.1
+    DROPOUT = 0.2  # INCREASED from 0.1 to 0.2 to reduce overfitting
     
     # Datasets (Coursework Aligned: AI Literacy + Art Domain)
     # Theme: AI Art Expert & Creator (matches CNN/NST project)
     # NEW: Lightweight datasets for 50GB quota
-    ELI5_SAMPLES = 40000              # AI literacy Q&A explanations
-    CONVERSATIONAL_SAMPLES = 30000    # Podcast/dialogue style AI discussions
-    ART_TEXT_SAMPLES = 20000          # Art descriptions (text-only, no images)
-    AI_QA_SAMPLES = 30000             # AI/ML technical Wikipedia
-    
-    # Legacy (deprecated - too large for quota)
-    WIKIART_SAMPLES = 0               # DISABLED - 30GB+ with images
-    OPENWEBTEXT_SAMPLES = 0           # DISABLED - 100GB+
-    C4_SAMPLES = 0                    # DISABLED - 100GB+
+    SQUAD_QA_SAMPLES = 40000          # SQuAD Q&A for AI literacy
+    CONVERSATIONAL_SAMPLES = 30000    # OpenAssistant conversations
+    ART_TEXT_SAMPLES = 20000          # WikiArt text metadata (no images)
+    TECH_QA_SAMPLES = 30000           # StackOverflow Python Q&A
     
     # Tokenizer & Training
     TOKENIZER_NAME = "gpt2"
@@ -65,10 +60,11 @@ class Config:
     
     NUM_EPOCHS = 30
     BATCH_SIZE = 8
-    LEARNING_RATE = 1e-4
-    WEIGHT_DECAY = 0.01
+    LEARNING_RATE = 5e-5  # REDUCED from 1e-4 to 5e-5 to prevent overfitting
+    WEIGHT_DECAY = 0.05   # INCREASED from 0.01 to 0.05 for stronger L2 regularization
     GRAD_CLIP = 1.0
     WARMUP_STEPS = 2000
+    LABEL_SMOOTHING = 0.1  # NEW: Add label smoothing to prevent overconfidence
     
     TRAIN_SPLIT = 0.95
     VAL_SPLIT = 0.05
@@ -312,7 +308,7 @@ def main():
     print(f"Device: {config.DEVICE}")
     if torch.cuda.is_available():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
-    print(f"Datasets: SQuAD Q&A ({config.ELI5_SAMPLES:,}) + BookCorpus ({config.AI_QA_SAMPLES:,})")
+    print(f"Datasets: SQuAD Q&A ({config.SQUAD_QA_SAMPLES:,}) + StackOverflow ({config.TECH_QA_SAMPLES:,}) + OpenAssistant ({config.CONVERSATIONAL_SAMPLES:,}) + WikiArt Text ({config.ART_TEXT_SAMPLES:,})")
     print("=" * 60)
     
     logger.info("Starting training...")
@@ -329,10 +325,10 @@ def main():
     start_time = time.time()
     
     all_texts = load_all_datasets(
-        eli5_samples=config.ELI5_SAMPLES,
+        squad_qa_samples=config.SQUAD_QA_SAMPLES,
         conversational_samples=config.CONVERSATIONAL_SAMPLES,
         art_text_samples=config.ART_TEXT_SAMPLES,
-        ai_qa_samples=config.AI_QA_SAMPLES
+        tech_qa_samples=config.TECH_QA_SAMPLES
     )
     logger.info(f"Loaded {len(all_texts):,} samples in {time.time() - start_time:.1f}s")
     
@@ -344,9 +340,9 @@ def main():
     logger.info(f"Train: {len(train_texts):,} samples")
     logger.info(f"Val: {len(val_texts):,} samples")
     
-    # Create dataloaders
-    train_dataset = TextDataset(train_texts, tokenizer, max_len=config.MAX_LEN)
-    val_dataset = TextDataset(val_texts, tokenizer, max_len=config.MAX_LEN)
+    # Create dataloaders with data augmentation for training
+    train_dataset = TextDataset(train_texts, tokenizer, max_len=config.MAX_LEN, augment=True)
+    val_dataset = TextDataset(val_texts, tokenizer, max_len=config.MAX_LEN, augment=False)  # No augmentation for validation
     
     train_loader = DataLoader(
         train_dataset,
@@ -372,7 +368,8 @@ def main():
         n_heads=config.N_HEADS,
         n_kv_heads=config.N_KV_HEADS,
         max_len=config.MAX_SEQ_LEN,
-        dropout=config.DROPOUT
+        dropout=config.DROPOUT,
+        label_smoothing=config.LABEL_SMOOTHING  # Add label smoothing to reduce overfitting
     ).to(config.DEVICE)
     
     total_params = sum(p.numel() for p in model.parameters())
@@ -407,6 +404,8 @@ def main():
     train_losses = []
     val_losses = []
     val_perplexities = []
+    patience_counter = 0  # For early stopping
+    EARLY_STOP_PATIENCE = 5  # Stop if validation loss doesn't improve for 5 epochs
     
     checkpoint = load_latest_checkpoint(config.CHECKPOINT_DIR)
     
@@ -514,12 +513,27 @@ def main():
         logger.info(f"  Learning Rate: {current_lr:.6f}")
         logger.info(f"  Time: {epoch_time/60:.1f} min")
         
+        # Early stopping check
         if val_loss < best_val_loss:
             best_val_loss = val_loss
+            patience_counter = 0  # Reset patience
             best_path = os.path.join(config.CHECKPOINT_DIR, "model1_best.pt")
             save_checkpoint(model, optimizer, warmup_scheduler, epoch, val_loss, tokenizer, config, best_path,
                           train_losses, val_losses, val_perplexities)
             logger.info(f"New best model: Perplexity {val_perplexity:.2f}")
+        else:
+            patience_counter += 1
+            logger.info(f"No improvement for {patience_counter} epoch(s)")
+            
+            # Early stopping
+            if patience_counter >= EARLY_STOP_PATIENCE:
+                logger.info(f"Early stopping triggered after {patience_counter} epochs without improvement")
+                print("\n" + "=" * 70)
+                print(f"EARLY STOPPING: No improvement for {EARLY_STOP_PATIENCE} epochs")
+                print(f"Best Val Loss: {best_val_loss:.4f}")
+                print(f"Best Val Perplexity: {np.exp(best_val_loss):.2f}")
+                print("=" * 70 + "\n")
+                break
         
         # Save periodic checkpoint with training history
         if (epoch + 1) % config.CHECKPOINT_INTERVAL == 0:
