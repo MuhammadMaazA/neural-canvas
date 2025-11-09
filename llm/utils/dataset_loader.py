@@ -140,11 +140,28 @@ def load_conversational_ai(max_samples: int = 50000) -> List[str]:
 
 
 def load_art_text(max_samples: int = 30000) -> List[str]:
-    """Load art understanding text - for identifying styles, artists, and explaining art concepts"""
+    """
+    Load art understanding text - TEXT ONLY (no images!)
+    
+    PURPOSE: Teach LLM to recognize artist names, styles, and movements from TEXT
+    This creates a "conversational art expert" that can:
+    - Identify: "This is Impressionism by Monet"
+    - Explain: "Cubism uses geometric shapes and multiple perspectives"
+    - Recommend: "For abstract art, try Kandinsky or Mondrian"
+    
+    NOTE: LLM learns from TEXT descriptions, NOT images
+    For actual image recognition, you need CNN (VGG, ResNet, etc.)
+    
+    INTEGRATION WITH CNN:
+    - LLM: Provides text-based art knowledge and recommendations
+    - CNN: Does actual visual style transfer and image recognition
+    - Together: Complete AI Art Assistant (text understanding + visual processing)
+    """
     print(f"Loading Art Knowledge Dataset ({max_samples:,} samples)...")
     
     # Use WikiArt with text metadata - streaming to avoid download
     # We extract artist, style, genre and create educational Q&A format
+    # NO IMAGES DOWNLOADED - only text metadata!
     dataset = load_dataset("huggan/wikiart", split="train", streaming=True)
     
     texts = []
