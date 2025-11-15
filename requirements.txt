@@ -1,0 +1,41 @@
+# Neural Canvas - LLM Requirements
+# Install with: pip install -r requirements_llm.txt
+
+# Core deep learning
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Transformers and NLP
+transformers>=4.30.0
+tokenizers>=0.13.0
+datasets>=2.12.0
+sentencepiece>=0.1.99  # For some tokenizers
+
+# Training utilities
+accelerate>=0.20.0  # For distributed training and mixed precision
+wandb>=0.15.0  # Optional: for experiment tracking
+
+# Evaluation metrics
+scikit-learn>=1.2.0
+nltk>=3.8
+rouge-score>=0.1.2
+sacrebleu>=2.3.0  # For BLEU score
+
+# Data processing
+numpy>=1.24.0
+pandas>=2.0.0
+tqdm>=4.65.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Utilities
+python-dotenv>=1.0.0
+pyyaml>=6.0
+
+# Optional: Sustainability tracking
+codecarbon>=2.2.0  # Track CO2 emissions
+
+# Optional: Better progress bars
+rich>=13.4.0
