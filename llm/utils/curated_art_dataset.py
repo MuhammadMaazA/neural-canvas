@@ -65,23 +65,80 @@ def load_wikiart_knowledge(max_samples: int = 60000) -> List[str]:
 
     texts = []
     templates = [
-        # Style analysis
+        # EXPANDED: 30+ diverse templates to reduce repetition
+
+        # Direct questions - varied structure
         "Q: What defines {style} art?\nA: {style} is an artistic movement characterized by {artist}'s approach to {genre}. Artists like {artist} pioneered techniques that became hallmarks of this style, focusing on distinctive visual elements and creative expression.",
 
-        # Artist information
+        "Q: What is {style}?\nA: {style} represents a significant period in art history where artists explored {genre} through innovative techniques. The movement emphasized new ways of seeing and representing visual subjects.",
+
+        "Q: How would you describe {style}?\nA: {style} emerged as artists like {artist} began experimenting with {genre}, creating works that challenged conventional approaches and introduced fresh perspectives to visual art.",
+
+        "Q: What characterizes {style} art?\nA: The {style} movement is known for its distinctive treatment of {genre}, where artists developed unique methods of composition and expression that set their work apart from earlier traditions.",
+
+        # Artist-focused - diverse phrasings
         "Q: Tell me about {artist}.\nA: {artist} was a {style} artist known for their {genre} works. Their contributions to the {style} movement helped define the aesthetic and techniques that characterize this artistic period.",
 
-        # Genre exploration
+        "Q: Who was {artist}?\nA: {artist} played an important role in the {style} movement, creating influential {genre} works that demonstrated the movement's core principles and expressive possibilities.",
+
+        "Q: What makes {artist} important?\nA: {artist} made significant contributions to {style} through innovative {genre} compositions that explored new artistic territory and influenced subsequent generations of artists.",
+
+        "Q: Describe {artist}'s work.\nA: {artist}'s {genre} pieces exemplify {style}, showcasing techniques and aesthetic choices that became defining features of the movement during this important period in art history.",
+
+        # Genre exploration - natural variety
         "Q: What is {genre} in art?\nA: {genre} is a category of visual art that includes works like those created by {style} artists such as {artist}. This genre encompasses specific subject matter and compositional approaches.",
 
-        # Classification
-        "Image Analysis: This artwork shows characteristics of {style}. Key indicators include the {genre} subject matter and techniques typical of artists like {artist} who worked in this movement.",
+        "Q: Explain {genre} as an art form.\nA: {genre} represents a distinct type of artistic expression, explored extensively by {style} artists who brought unique perspectives and techniques to this category of work.",
 
-        # Educational
+        "Q: What does {genre} mean in the context of {style}?\nA: Within {style}, {genre} took on particular significance as artists like {artist} used this form to explore the movement's core aesthetic principles.",
+
+        # Historical context - varied approaches
+        "Q: When did {style} develop?\nA: The {style} movement developed as artists began exploring new approaches to {genre}. Artists like {artist} were instrumental in establishing the movement's distinctive characteristics.",
+
+        "Q: What influenced {style}?\nA: {style} emerged from evolving artistic ideas about {genre}, with pioneers like {artist} developing techniques that would define the movement's visual language.",
+
+        # Comparative and analytical
+        "Q: How is {style} different from other movements?\nA: {style} distinguished itself through its unique treatment of {genre}, with artists like {artist} pioneering methods that emphasized innovation over traditional conventions.",
+
+        "Q: What makes {style} unique?\nA: {style} stands out for its distinctive approach to {genre}, where artists developed techniques and aesthetic principles that created a recognizable visual identity.",
+
+        # Conversational tones
+        "If you're looking at a {genre} painting with {style} characteristics, you're likely viewing work from this important artistic period. Artists like {artist} exemplify the movement through their distinctive approach.",
+
+        "When examining {genre} works from the {style} period, notice how artists like {artist} employed techniques that became signature elements of this movement.",
+
+        "The {style} approach to {genre} is particularly notable. Artists such as {artist} demonstrated how the movement's principles could create compelling visual experiences.",
+
+        # Educational - natural phrasing
         "Art History Note: The {style} movement includes {genre} works by artists such as {artist}. Understanding {style} helps us recognize how artistic styles evolved and influenced visual culture.",
 
-        # Conversational
-        "If you're looking at a {genre} painting with {style} characteristics, it could be from the {style} period. Artists like {artist} exemplify this style through their distinctive approach.",
+        "In studying {style}, we see how artists transformed {genre} through innovative techniques. {artist} exemplifies this transformation in their influential body of work.",
+
+        "The development of {style} marked an important shift in how artists approached {genre}. Key figures like {artist} helped establish the movement's enduring influence.",
+
+        # Image analysis - varied formats
+        "Image Analysis: This artwork shows characteristics of {style}. Key indicators include the {genre} subject matter and techniques typical of artists like {artist} who worked in this movement.",
+
+        "Analyzing this piece: The {style} influence is evident in the treatment of {genre}, reflecting techniques pioneered by artists such as {artist}.",
+
+        "Visual examination reveals {style} characteristics in this {genre} work, demonstrating approaches associated with artists like {artist} from this period.",
+
+        # Technique-focused
+        "Q: What techniques define {style}?\nA: {style} is characterized by specific approaches to {genre}, with artists like {artist} developing methods that became hallmarks of the movement's visual expression.",
+
+        "Q: How did {style} artists approach {genre}?\nA: Artists working in {style}, including {artist}, brought distinctive techniques to {genre}, creating works that exemplified the movement's aesthetic principles.",
+
+        # Legacy and influence
+        "Q: Why is {style} important?\nA: {style} represents a crucial development in art history. Through {genre}, artists like {artist} introduced innovations that influenced countless subsequent works.",
+
+        "Q: What is {artist}'s legacy in {style}?\nA: {artist}'s work in {genre} helped define {style}, establishing approaches that continue to influence how we understand this important artistic movement.",
+
+        # Simple explanations
+        "The {style} movement transformed how artists thought about {genre}. Key contributors like {artist} demonstrated new possibilities for visual expression.",
+
+        "{artist} worked within the {style} tradition, creating {genre} pieces that showcased the movement's characteristic approaches and aesthetic values.",
+
+        "Understanding {style} means recognizing how artists like {artist} reimagined {genre}, bringing fresh perspectives to artistic practice.",
     ]
 
     for item in tqdm(dataset, desc="WikiArt", total=max_samples):
@@ -367,31 +424,31 @@ def load_anthropic_hh(max_samples: int = 30000) -> List[str]:
 # ==============================================================================
 
 def load_curated_art_datasets(
-    art_knowledge: int = 80000,
-    ai_literacy: int = 75000,
-    conversational: int = 80000
+    art_knowledge: int = 120000,
+    ai_literacy: int = 150000,
+    conversational: int = 150000
 ) -> Tuple[List[str], Dict[str, int]]:
     """
-    Load HIGH-QUALITY curated datasets for Art Expert chatbot
+    Load EXPANDED HIGH-QUALITY curated datasets for Art Expert chatbot
 
-    Returns ~235K samples optimized for:
+    Returns ~420K samples optimized for:
     - Art style classification explanation
     - AI literacy education
     - Natural conversational flow
 
     Args:
-        art_knowledge: Samples for art understanding
-        ai_literacy: Samples for AI concept explanation
-        conversational: Samples for dialogue quality
+        art_knowledge: Samples for art understanding (default 120K)
+        ai_literacy: Samples for AI concept explanation (default 150K)
+        conversational: Samples for dialogue quality (default 150K)
 
     Returns:
         (all_texts, dataset_stats)
     """
     print("=" * 80)
-    print("CURATED ART EXPERT DATASET LOADING")
+    print("EXPANDED CURATED ART EXPERT DATASET LOADING")
     print("=" * 80)
-    print("Focus: Quality over Quantity")
-    print("Target: ~200-250K high-value samples")
+    print("Focus: More Data + Higher Quality")
+    print("Target: ~420K high-value samples (EXPANDED from 235K)")
     print("=" * 80)
 
     all_texts = []
@@ -402,31 +459,38 @@ def load_curated_art_datasets(
     print("DATASET 1: ART KNOWLEDGE")
     print("=" * 80)
     art_texts = []
-    art_texts.extend(load_wikiart_knowledge(max_samples=art_knowledge // 2))
-    art_texts.extend(load_arttext_descriptions(max_samples=art_knowledge // 4))
+    # SIMPLIFIED: Only use WikiArt with improved templates (30+ diverse patterns)
+    # REMOVED: Synthetic ArtText - was causing repetitive nonsense
+    art_texts.extend(load_wikiart_knowledge(max_samples=art_knowledge))
 
     all_texts.extend(art_texts)
     stats['art_knowledge'] = len(art_texts)
 
-    # DATASET 2: AI LITERACY
+    # DATASET 2: AI LITERACY (EXPANDED!)
     print("\n" + "=" * 80)
-    print("DATASET 2: AI LITERACY & EDUCATION")
+    print("DATASET 2: AI LITERACY & EDUCATION (EXPANDED)")
     print("=" * 80)
     ai_texts = []
-    ai_texts.extend(load_eli5_ai_focused(max_samples=ai_literacy // 2))
-    ai_texts.extend(load_science_qa(max_samples=ai_literacy // 3))
-    ai_texts.extend(load_truthfulqa(max_samples=5000))
+    # EXPANDED: More diverse sources for better learning
+    ai_texts.extend(load_eli5_ai_focused(max_samples=int(ai_literacy * 0.40)))      # 40% ELI5 (60K)
+    ai_texts.extend(load_science_qa(max_samples=int(ai_literacy * 0.27)))           # 27% SciQ (40K)
+    ai_texts.extend(load_truthfulqa(max_samples=int(ai_literacy * 0.07)))           # 7% TruthfulQA (10K)
+    # TODO: Add Natural Questions (13% = 20K) when available
+    # TODO: Add CoQA (13% = 20K) when available
 
     all_texts.extend(ai_texts)
     stats['ai_literacy'] = len(ai_texts)
 
-    # DATASET 3: CONVERSATIONAL
+    # DATASET 3: CONVERSATIONAL (EXPANDED!)
     print("\n" + "=" * 80)
-    print("DATASET 3: CONVERSATIONAL QUALITY")
+    print("DATASET 3: CONVERSATIONAL QUALITY (EXPANDED)")
     print("=" * 80)
     conv_texts = []
-    conv_texts.extend(load_openassistant_conversations(max_samples=conversational // 2))
-    conv_texts.extend(load_anthropic_hh(max_samples=conversational // 2))
+    # EXPANDED: More conversational variety
+    conv_texts.extend(load_openassistant_conversations(max_samples=int(conversational * 0.53)))  # 53% OpenAssistant (80K)
+    conv_texts.extend(load_anthropic_hh(max_samples=int(conversational * 0.27)))                 # 27% Anthropic (40K)
+    # TODO: Add DailyDialog (13% = 20K) when available
+    # TODO: Add EmpatheticDialogues (7% = 10K) when available
 
     all_texts.extend(conv_texts)
     stats['conversational'] = len(conv_texts)

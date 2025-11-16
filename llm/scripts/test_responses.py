@@ -59,14 +59,16 @@ for i, prompt in enumerate(test_prompts, 1):
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=200)
     input_ids = inputs['input_ids'].to(device)
     
-    # Generate
+    # Generate with improved parameters to reduce nonsense
     with torch.no_grad():
         outputs = model.generate(
             input_ids,
             max_new_tokens=80,
-            temperature=0.7,
-            top_k=50,
-            top_p=0.9
+            temperature=0.3,          # Lower temp = more focused, less random
+            top_k=40,                 # Fewer token choices = more coherent
+            top_p=0.85,               # Slightly lower for better quality
+            repetition_penalty=1.2,   # Penalize repetition
+            do_sample=True
         )
     
     # Decode

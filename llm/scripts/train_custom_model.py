@@ -41,11 +41,11 @@ class TrainingConfig:
     TOKENIZER_NAME = "gpt2"  # GPT-2 tokenizer (50K vocab, no auth needed)
     MAX_SEQ_LEN = 512  # Shorter = faster training
 
-    # Dataset sizes (curated for quality)
-    ART_KNOWLEDGE = 80000
-    AI_LITERACY = 75000
-    CONVERSATIONAL = 80000
-    # Total: ~235K samples
+    # Dataset sizes (EXPANDED for better learning)
+    ART_KNOWLEDGE = 120000   # Increased from 80K
+    AI_LITERACY = 150000     # Increased from 75K
+    CONVERSATIONAL = 150000  # Increased from 80K
+    # Total: ~420K samples (was 235K)
 
     # Training hyperparameters (OPTIMIZED for small models)
     NUM_EPOCHS = 30
