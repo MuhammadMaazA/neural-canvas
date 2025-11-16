@@ -142,16 +142,23 @@ def load_wikiart_knowledge(max_samples: int = 60000) -> List[str]:
     ]
 
     for item in tqdm(dataset, desc="WikiArt", total=max_samples):
+        # WikiArt fields - be flexible as dataset structure may vary
         artist = str(item.get('artist', '')).strip()
         style = str(item.get('style', '')).strip()
         genre = str(item.get('genre', '')).strip()
 
-        # Filter quality
-        if not all([artist, style, genre]):
+        # Use style as fallback for genre if missing
+        if not genre or genre in ['0', 'unknown', 'null', '']:
+            genre = style or 'painting'
+
+        # Relaxed quality filter - only require artist AND (style OR genre)
+        if not artist or len(artist) < 3:
             continue
-        if any(x in ['0', 'unknown', 'null'] for x in [artist, style, genre]):
+        if not style or len(style) < 3:
             continue
-        if len(artist) < 3 or len(style) < 3:
+        if artist.lower() in ['unknown', 'null', 'none', '0']:
+            continue
+        if style.lower() in ['unknown', 'null', 'none', '0']:
             continue
 
         # Create varied examples
