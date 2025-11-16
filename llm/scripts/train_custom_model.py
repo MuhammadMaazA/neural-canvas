@@ -124,7 +124,7 @@ def load_checkpoint(filepath: str):
     """Load checkpoint"""
     if not os.path.exists(filepath):
         return None
-    return torch.load(filepath, map_location='cpu')
+    return torch.load(filepath, map_location='cpu', weights_only=False)
 
 
 def create_lr_scheduler(optimizer, num_training_steps: int, warmup_steps: int):
