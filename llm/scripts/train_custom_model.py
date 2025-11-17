@@ -65,7 +65,7 @@ class TrainingConfig:
     VAL_SPLIT = 0.05
 
     # Paths
-    CHECKPOINT_DIR = "/cs/student/projects1/2023/muhamaaz/checkpoints/model1_custom"
+    CHECKPOINT_DIR = "/cs/student/projects1/2023/muhamaaz/checkpoints/model1_custom_v2_fixed_wikiart"
     LOG_DIR = "/cs/student/projects1/2023/muhamaaz/logs"
 
     # Hardware

@@ -59,8 +59,13 @@ def load_wikiart_knowledge(max_samples: int = 60000) -> List[str]:
 
     try:
         dataset = load_dataset("huggan/wikiart", split="train", streaming=True)
-    except:
-        print("Error loading WikiArt, trying alternative...")
+        # Get label mappings for converting IDs to names
+        artist_names = dataset.features['artist'].names
+        genre_names = dataset.features['genre'].names
+        style_names = dataset.features['style'].names
+        print(f"✓ Dataset loaded with {len(artist_names)} artists, {len(style_names)} styles, {len(genre_names)} genres")
+    except Exception as e:
+        print(f"✗ Error loading WikiArt: {e}")
         return []
 
     texts = []
@@ -142,23 +147,27 @@ def load_wikiart_knowledge(max_samples: int = 60000) -> List[str]:
     ]
 
     for item in tqdm(dataset, desc="WikiArt", total=max_samples):
-        # WikiArt fields - be flexible as dataset structure may vary
-        artist = str(item.get('artist', '')).strip()
-        style = str(item.get('style', '')).strip()
-        genre = str(item.get('genre', '')).strip()
+        # Convert IDs to actual names using ClassLabel mappings
+        try:
+            artist_id = item.get('artist', 0)
+            style_id = item.get('style', 0)
+            genre_id = item.get('genre', 0)
+            
+            artist = artist_names[artist_id]
+            style = style_names[style_id]
+            genre = genre_names[genre_id]
+            
+            # Clean up names - replace underscores and hyphens with spaces, title case
+            artist = artist.replace('-', ' ').replace('_', ' ').title()
+            style = style.replace('_', ' ').title()
+            genre = genre.replace('_', ' ').title()
+            
+        except (IndexError, KeyError, TypeError) as e:
+            continue
 
-        # Use style as fallback for genre if missing
-        if not genre or genre in ['0', 'unknown', 'null', '']:
-            genre = style or 'painting'
-
-        # Relaxed quality filter - only require artist AND (style OR genre)
-        if not artist or len(artist) < 3:
-            continue
-        if not style or len(style) < 3:
-            continue
-        if artist.lower() in ['unknown', 'null', 'none', '0']:
-            continue
-        if style.lower() in ['unknown', 'null', 'none', '0']:
+        # Minimal quality filter - only skip truly invalid entries
+        # Keep "Unknown Artist" and "Unknown Genre" - they're still valid art knowledge!
+        if len(artist) < 2 or len(style) < 2:
             continue
 
         # Create varied examples
@@ -466,9 +475,16 @@ def load_curated_art_datasets(
     print("DATASET 1: ART KNOWLEDGE")
     print("=" * 80)
     art_texts = []
-    # SIMPLIFIED: Only use WikiArt with improved templates (30+ diverse patterns)
-    # REMOVED: Synthetic ArtText - was causing repetitive nonsense
-    art_texts.extend(load_wikiart_knowledge(max_samples=art_knowledge))
+    
+    # Load WikiArt labels (artists, styles, genres)
+    art_texts.extend(load_wikiart_knowledge(max_samples=int(art_knowledge * 0.7)))  # 70% WikiArt
+    
+    # Add rich, detailed art knowledge (biographies, movements, techniques)
+    try:
+        from .rich_art_knowledge import load_curated_art_knowledge
+        art_texts.extend(load_curated_art_knowledge(max_samples=int(art_knowledge * 0.3)))  # 30% rich knowledge
+    except:
+        print("⚠ Rich art knowledge module not found, using WikiArt only")
 
     all_texts.extend(art_texts)
     stats['art_knowledge'] = len(art_texts)
