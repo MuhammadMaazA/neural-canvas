@@ -12,7 +12,7 @@ This trains LLMs to **explain CNN classification outputs** in natural language. 
 | Model | Type | Size | Training |
 |-------|------|------|----------|
 | **Model 1** | From scratch | 56M params | Custom Art Expert Transformer |
-| **Model 2** | Fine-tuned | 82M params | DistilGPT-2 pretrained |
+| **Model 2** | Fine-tuned | 124M params | GPT-2 Base pretrained |
 
 ## Quick Start
 
@@ -89,8 +89,8 @@ Generated synthetically with:
 - 56M parameters, optimized for this task
 
 **Model 2 (Fine-tuned):**
-- DistilGPT-2 base (82M params)
-- Pretrained on general text, fine-tuned on CNN explanations
+- GPT-2 Base (124M params, 12 layers)
+- Pretrained on 40GB of text, fine-tuned on CNN explanations
 - Lower learning rate (2e-5 vs 3e-4)
 
 ## Integration with CNN

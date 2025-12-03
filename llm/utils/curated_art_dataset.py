@@ -535,6 +535,82 @@ def load_curated_art_datasets(
     return all_texts, stats
 
 
+def load_combined_art_datasets(
+    tokenizer,
+    max_len: int = 512,
+    use_wikiart: bool = True,
+    use_eli5: bool = True,
+    use_openassistant: bool = True
+) -> Dataset:
+    """
+    Load and combine 3 datasets for coursework requirement.
+    
+    COURSEWORK REQUIREMENT: "One of them should be trained from scratch using 3 different datasets"
+    
+    This function loads:
+    1. WikiArt (~120K) - Art historical knowledge and terminology
+    2. ELI5 (~40K) - Clear AI concept explanations
+    3. OpenAssistant (~50K) - Natural conversational patterns
+    
+    Total: ~210K real human-written samples
+    
+    Args:
+        tokenizer: Tokenizer to use for encoding text
+        max_len: Maximum sequence length
+        use_wikiart: Include WikiArt dataset
+        use_eli5: Include ELI5 dataset
+        use_openassistant: Include OpenAssistant dataset
+    
+    Returns:
+        TextDataset with combined samples
+    """
+    print("=" * 80)
+    print("LOADING 3 DATASETS (COURSEWORK REQUIREMENT)")
+    print("=" * 80)
+    print("Requirement: Train from scratch using 3 different datasets")
+    print("=" * 80)
+    
+    all_texts = []
+    
+    # Dataset 1: WikiArt Knowledge
+    if use_wikiart:
+        print("\n[Dataset 1/3] WikiArt Art Knowledge...")
+        wikiart_texts = load_wikiart_knowledge(max_samples=120000)
+        all_texts.extend(wikiart_texts)
+        print(f"✓ Loaded {len(wikiart_texts):,} WikiArt samples")
+    
+    # Dataset 2: ELI5 AI Literacy
+    if use_eli5:
+        print("\n[Dataset 2/3] ELI5 AI Explanations...")
+        eli5_texts = load_eli5_ai_focused(max_samples=40000)
+        all_texts.extend(eli5_texts)
+        print(f"✓ Loaded {len(eli5_texts):,} ELI5 samples")
+    
+    # Dataset 3: OpenAssistant Conversations
+    if use_openassistant:
+        print("\n[Dataset 3/3] OpenAssistant Conversations...")
+        oa_texts = load_openassistant_conversations(max_samples=50000)
+        all_texts.extend(oa_texts)
+        print(f"✓ Loaded {len(oa_texts):,} OpenAssistant samples")
+    
+    # Shuffle to mix all datasets
+    random.shuffle(all_texts)
+    
+    # Print summary
+    print("\n" + "=" * 80)
+    print("DATASET COMBINATION COMPLETE")
+    print("=" * 80)
+    print(f"Total Combined Samples: {len(all_texts):,}")
+    print(f"  - WikiArt:       {'✓' if use_wikiart else '✗'}")
+    print(f"  - ELI5:          {'✓' if use_eli5 else '✗'}")
+    print(f"  - OpenAssistant: {'✓' if use_openassistant else '✗'}")
+    print("=" * 80)
+    
+    # Create tokenized dataset
+    dataset = TextDataset(all_texts, tokenizer, max_len)
+    return dataset
+
+
 if __name__ == "__main__":
     # Test loading
     print("Testing dataset loading...")

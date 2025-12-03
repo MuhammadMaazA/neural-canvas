@@ -2,12 +2,17 @@
 """
 Train From-Scratch Model to Explain CNN Outputs
 ================================================
-MODEL 1: Custom transformer trained specifically for CNN explanation task
+MODEL 1: Custom transformer trained on 3 DATASETS (COURSEWORK REQUIREMENT)
+
+Datasets (Total ~210K samples):
+1. WikiArt (~120K) - Art historical knowledge and terminology
+2. ELI5 (~40K) - Clear AI concept explanations in simple language
+3. OpenAssistant (~50K) - Natural conversational dialogue patterns
 
 This trains your Art Expert model to:
-1. Take CNN classification outputs (artist/style/genre + confidences)
-2. Generate natural language explanations of what CNN detected
-3. Explain both the art and the AI's reasoning
+1. Generate educational explanations about art and AI
+2. Communicate with proper English fluency (from real human text)
+3. Explain CNN outputs in accessible language
 """
 
 import os
@@ -28,7 +33,7 @@ sys.path.append('/cs/student/projects1/2023/muhamaaz/neural-canvas')
 
 from transformers import GPT2Tokenizer, get_cosine_schedule_with_warmup
 from llm.models.art_expert_model import ArtExpertTransformer
-from llm.utils.cnn_explanation_dataset import load_cnn_explanation_dataset
+from llm.utils.curated_art_dataset import load_combined_art_datasets
 
 import matplotlib
 matplotlib.use('Agg')
@@ -47,8 +52,11 @@ class TrainingConfig:
     DROPOUT = 0.1
     LABEL_SMOOTHING = 0.1
 
-    # Dataset
-    NUM_SAMPLES = 100000  # 100K CNN explanation examples
+    # Dataset (COURSEWORK: 3 datasets required)
+    # WikiArt (~120K) + ELI5 (~40K) + OpenAssistant (~50K) = ~210K total
+    USE_WIKIART = True
+    USE_ELI5 = True
+    USE_OPENASSISTANT = True
 
     # Training
     NUM_EPOCHS = 20
@@ -230,9 +238,9 @@ def main():
     print("\n" + "=" * 80)
     print("CNN EXPLAINER - FROM SCRATCH TRAINING")
     print("=" * 80)
-    print("Task: Train LLM to explain CNN classification outputs")
+    print("Task: Train LLM for art + AI literacy (CNN explanation)")
     print("Model: Custom Art Expert Transformer (56M params)")
-    print("Dataset: 100K CNN output → explanation pairs")
+    print("Datasets: 3 sources (WikiArt + ELI5 + OpenAssistant = ~210K)")
     print("=" * 80)
     print(f"Device: {config.DEVICE}")
     if torch.cuda.is_available():
@@ -263,13 +271,21 @@ def main():
     total_params = sum(p.numel() for p in model.parameters())
     logger.info(f"Total parameters: {total_params/1e6:.1f}M")
 
-    # Load CNN explanation dataset
-    logger.info("\nLoading CNN explanation dataset...")
-    full_dataset = load_cnn_explanation_dataset(
-        num_samples=config.NUM_SAMPLES,
+    # Load 3 datasets (COURSEWORK REQUIREMENT)
+    logger.info("\nLoading 3 curated art datasets...")
+    logger.info("1. WikiArt: Art historical knowledge and terminology")
+    logger.info("2. ELI5: Clear AI concept explanations")
+    logger.info("3. OpenAssistant: Natural conversational patterns")
+    
+    full_dataset = load_combined_art_datasets(
         tokenizer=tokenizer,
-        max_len=config.MAX_LEN
+        max_len=config.MAX_LEN,
+        use_wikiart=config.USE_WIKIART,
+        use_eli5=config.USE_ELI5,
+        use_openassistant=config.USE_OPENASSISTANT
     )
+    
+    logger.info(f"Total combined samples: {len(full_dataset):,}")
 
     # Split
     train_size = int(len(full_dataset) * config.TRAIN_SPLIT)
