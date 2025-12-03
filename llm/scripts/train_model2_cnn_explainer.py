@@ -41,17 +41,17 @@ from utils.cnn_explainer_dataset import load_cnn_explainer_dataset
 class FineTuningConfig:
     """Configuration for Model 2 (fine-tuning)"""
     
-    # Model - using DistilGPT-2 (smaller, faster to fine-tune)
-    MODEL_NAME = "distilgpt2"  # 82M params, or use "gpt2" for 124M
+    # Model - using GPT-2 Medium (better quality, 355M params)
+    MODEL_NAME = "gpt2-medium"  # 355M params - better than distilgpt2 (82M) or gpt2 (124M)
     MAX_SEQ_LEN = 512
     
     # Dataset size
     DATASET_SIZE = "medium"  # "small", "medium", or "large"
     
     # Fine-tuning hyperparameters (more conservative than training from scratch)
-    NUM_EPOCHS = 10  # Fewer epochs needed
-    BATCH_SIZE = 8   # Smaller batch for larger model
-    GRADIENT_ACCUMULATION_STEPS = 4  # Effective batch = 32
+    NUM_EPOCHS = 8  # Fewer epochs needed (converges faster with better model)
+    BATCH_SIZE = 4   # Smaller batch for larger model (355M needs more memory)
+    GRADIENT_ACCUMULATION_STEPS = 8  # Effective batch = 32 (4*8)
     LEARNING_RATE = 2e-5  # MUCH lower for fine-tuning!
     WEIGHT_DECAY = 0.01
     GRAD_CLIP = 1.0
@@ -65,7 +65,7 @@ class FineTuningConfig:
     VAL_SPLIT = 0.05
     
     # Paths
-    CHECKPOINT_DIR = "/cs/student/projects1/2023/muhamaaz/checkpoints/model2_cnn_explainer"
+    CHECKPOINT_DIR = "/cs/student/projects1/2023/muhamaaz/checkpoints/model2_cnn_explainer_gpt2medium"
     LOG_DIR = "/cs/student/projects1/2023/muhamaaz/logs"
     
     # Hardware
