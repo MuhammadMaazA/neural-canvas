@@ -1,6 +1,9 @@
+"use client";
+
 import { Brain, Eye, Palette, Zap, Sparkles, Settings, Info, MessageSquare, ScanEye, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Link, useLocation } from "react-router-dom";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 interface SidebarProps {
   activeSection: string;
@@ -29,8 +32,8 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
       {/* Navigation */}
       <nav className="flex-1 flex flex-col items-center gap-2">
         {navItems.map((item) => {
-          const location = useLocation();
-          const isActive = item.path ? location.pathname === item.path : activeSection === item.id;
+          const pathname = usePathname();
+          const isActive = item.path ? pathname === item.path : activeSection === item.id;
           
           const content = (
             <>
@@ -51,7 +54,7 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
           
           if (item.path) {
             return (
-              <Link key={item.id} to={item.path} className={className} title={item.label}>
+              <Link key={item.id} href={item.path} className={className} title={item.label}>
                 {content}
               </Link>
             );

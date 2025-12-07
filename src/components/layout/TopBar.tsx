@@ -1,3 +1,5 @@
+"use client";
+
 import { Lightbulb, LightbulbOff } from "lucide-react";
 import { useTheme } from "next-themes";
 

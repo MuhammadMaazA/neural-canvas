@@ -1,0 +1,200 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Neural Canvas - Light Theme */
+    --background: 0 0% 98%;
+    --foreground: 240 20% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 20% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 20% 10%;
+
+    /* The Artist (Human) - Metallic Gold */
+    --primary: 43 74% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    /* The Machine (AI) - Electric Violet */
+    --secondary: 258 90% 55%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 240 10% 90%;
+    --muted-foreground: 240 10% 40%;
+
+    /* Accent - Neon Blue */
+    --accent: 217 91% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 10% 85%;
+    --input: 240 10% 85%;
+    --ring: 258 90% 55%;
+
+    --radius: 0.75rem;
+
+    /* Canvas-specific colors */
+    --canvas-deep: 240 10% 95%;
+    --canvas-panel: 0 0% 100%;
+    --canvas-highlight: 240 10% 92%;
+    --canvas-glow: 258 90% 55%;
+    
+    /* AI Gradient */
+    --gradient-ai: linear-gradient(135deg, hsl(258 90% 55%) 0%, hsl(217 91% 50%) 100%);
+    --gradient-gold: linear-gradient(135deg, hsl(43 74% 45%) 0%, hsl(38 70% 50%) 100%);
+    --gradient-void: linear-gradient(180deg, hsl(0 0% 98%) 0%, hsl(240 10% 95%) 100%);
+
+    /* Glow effects */
+    --glow-ai: 0 0 30px hsl(258 90% 55% / 0.2);
+    --glow-gold: 0 0 30px hsl(43 74% 45% / 0.2);
+    --glow-blue: 0 0 30px hsl(217 91% 50% / 0.2);
+
+    /* Sidebar */
+    --sidebar-background: 240 10% 96%;
+    --sidebar-foreground: 240 10% 30%;
+    --sidebar-primary: 43 74% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 10% 92%;
+    --sidebar-accent-foreground: 240 20% 10%;
+    --sidebar-border: 240 10% 88%;
+    --sidebar-ring: 258 90% 55%;
+  }
+
+  .dark {
+    /* Neural Canvas - Dark Theme: Clean Slate & Cyan */
+    --background: 222 20% 7%;
+    --foreground: 210 15% 85%;
+
+    --card: 222 18% 11%;
+    --card-foreground: 210 15% 85%;
+
+    --popover: 222 18% 11%;
+    --popover-foreground: 210 15% 85%;
+
+    /* Primary - Clean Cyan */
+    --primary: 190 70% 50%;
+    --primary-foreground: 222 20% 7%;
+
+    /* Secondary - Cool Slate */
+    --secondary: 215 20% 35%;
+    --secondary-foreground: 210 15% 90%;
+
+    --muted: 222 15% 18%;
+    --muted-foreground: 215 12% 50%;
+
+    /* Accent - Soft Teal */
+    --accent: 175 50% 45%;
+    --accent-foreground: 222 20% 7%;
+
+    --destructive: 0 60% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 222 15% 18%;
+    --input: 222 15% 18%;
+    --ring: 190 70% 50%;
+
+    /* Canvas-specific colors */
+    --canvas-deep: 222 20% 7%;
+    --canvas-panel: 222 18% 11%;
+    --canvas-highlight: 222 15% 16%;
+    --canvas-glow: 190 70% 50%;
+    
+    /* Gradients */
+    --gradient-ai: linear-gradient(135deg, hsl(190 70% 50%) 0%, hsl(175 50% 45%) 100%);
+    --gradient-gold: linear-gradient(135deg, hsl(190 70% 50%) 0%, hsl(200 60% 45%) 100%);
+    --gradient-void: linear-gradient(180deg, hsl(222 20% 7%) 0%, hsl(222 18% 11%) 100%);
+
+    /* Glow effects */
+    --glow-ai: 0 0 25px hsl(190 70% 50% / 0.3);
+    --glow-gold: 0 0 25px hsl(190 70% 50% / 0.35);
+    --glow-blue: 0 0 20px hsl(200 60% 45% / 0.3);
+
+    /* Sidebar */
+    --sidebar-background: 222 20% 6%;
+    --sidebar-foreground: 215 12% 55%;
+    --sidebar-primary: 190 70% 50%;
+    --sidebar-primary-foreground: 222 20% 7%;
+    --sidebar-accent: 222 15% 14%;
+    --sidebar-accent-foreground: 210 15% 85%;
+    --sidebar-border: 222 15% 14%;
+    --sidebar-ring: 190 70% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Orbitron', sans-serif;
+    @apply tracking-wide;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer utilities {
+  .text-gradient-gold {
+    @apply bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 bg-clip-text text-transparent;
+  }
+
+  .text-gradient-ai {
+    @apply bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 bg-clip-text text-transparent;
+  }
+
+  .glass-panel {
+    @apply bg-card/50 backdrop-blur-xl border border-border/50;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground)) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground));
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--foreground));
+  }
+
+  .shadow-glow-ai {
+    box-shadow: 0 0 20px hsl(258 90% 66% / 0.3);
+  }
+
+  .shadow-glow-gold {
+    box-shadow: 0 0 20px hsl(43 74% 52% / 0.3);
+  }
+
+  .shadow-glow-blue {
+    box-shadow: 0 0 20px hsl(217 91% 60% / 0.3);
+  }
+}
