@@ -47,28 +47,66 @@ def test_model(name, checkpoint_path):
 
         print(f"✅ Model ready!")
 
-        # Create prompt
-        prompt = f"Artist: {sample['artist']}\nStyle: {sample['style']}\nGenre: {sample['genre']}\n\nExplanation:"
+        # Create prompt with NEW improved format
+        prompt = f"""As an art expert, explain this artwork classification in 2-3 clear sentences.
 
-        print(f"\n   Generating text...")
+Classification: {sample['artist']} painted in {sample['style']} style, {sample['genre']} genre.
+
+Expert analysis:"""
+
+        print(f"\n   Generating text with IMPROVED parameters...")
         inputs = tokenizer(prompt, return_tensors="pt")
 
         with torch.no_grad():
             outputs = model.generate(
                 inputs['input_ids'],
-                max_length=150,
+                max_new_tokens=150,
                 temperature=0.8,
                 do_sample=True,
-                top_p=0.9,
+                top_k=40,
+                top_p=0.92,
+                repetition_penalty=1.2,
+                no_repeat_ngram_size=3,
                 pad_token_id=tokenizer.eos_token_id
             )
 
         text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        explanation = text[len(prompt):].strip()
 
         print(f"\n{'='*40}")
-        print(f"Generated Text:")
+        print(f"RAW Generated Text:")
         print(f"{'='*40}")
-        print(text)
+        print(explanation)
+
+        # Apply cleaning like in the backend
+        import re
+        cleaned = re.sub(r'^(Assistant|User|Human|Expert|Response):\s*', '', explanation, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\b(Assistant|User|Human|Expert):\s*', '', cleaned, flags=re.IGNORECASE)
+        conv_match = re.search(r'\n\s*(Assistant|User|Human|Expert):', cleaned, flags=re.IGNORECASE)
+        if conv_match:
+            cleaned = cleaned[:conv_match.start()].strip()
+
+        # Ensure complete sentences
+        for end in ['. ', '! ', '? ']:
+            last_idx = cleaned.rfind(end)
+            if last_idx > 30:
+                cleaned = cleaned[:last_idx+1].strip()
+                break
+
+        print(f"\n{'='*40}")
+        print(f"CLEANED Output:")
+        print(f"{'='*40}")
+        print(cleaned)
+
+        # Check quality
+        word_count = len(cleaned.split())
+        number_count = len(re.findall(r'\d+%?', cleaned))
+        has_art = any(kw in cleaned.lower() for kw in ['artist', 'style', 'art', 'painting', 'movement'])
+
+        print(f"\nQuality Check:")
+        print(f"  Length: {len(cleaned)} chars, {word_count} words")
+        print(f"  Numbers: {number_count} ({number_count/max(word_count,1)*100:.1f}%)")
+        print(f"  Has art keywords: {'✅' if has_art else '❌'}")
         print()
 
         return True

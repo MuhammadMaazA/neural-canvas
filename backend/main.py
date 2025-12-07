@@ -114,28 +114,43 @@ def load_models():
         print(f"✓ CNN from scratch loaded (macro acc: {ckpt.get('macro_acc', 0):.2%})")
     cnn_model_scratch.eval()
     
-    # Load fine-tuned ResNet50
-    print("Loading fine-tuned ResNet50...")
+    # Load fine-tuned model (timm-based)
+    print("Loading fine-tuned model (timm)...")
     try:
         # Import the actual model class from training script
         import sys
         sys.path.insert(0, '/cs/student/projects1/2023/muhamaaz/neural-canvas/cnn_models')
-        from train_finetuned_cnn import PretrainedMultiTaskCNN
+        try:
+            from train_timm import TimmMultiHead, build_timm_model
+        except ImportError:
+            # Fallback: try relative import
+            sys.path.insert(0, '/cs/student/projects1/2023/muhamaaz/neural-canvas/cnn_models')
+            from train_timm import TimmMultiHead, build_timm_model
         
         # Create model with same architecture as training
-        cnn_model_finetuned = PretrainedMultiTaskCNN(
-            num_artists=num_classes['artist'],
-            num_styles=num_classes['style'],
-            num_genres=num_classes['genre'],
-            backbone="resnet50",
-            pretrained=False  # We'll load from checkpoint, but structure should match
-        ).to(device)
+        # Try to use build_timm_model if available, otherwise create directly
+        try:
+            cnn_model_finetuned = build_timm_model(config, num_classes).to(device)
+        except:
+            # Fallback: create TimmMultiHead directly
+            cnn_model_finetuned = TimmMultiHead(num_classes=num_classes, model_name="convnext_tiny").to(device)
         
         # Find best fine-tuned checkpoint
         import glob
-        finetuned_checkpoints = glob.glob("/cs/student/projects1/2023/muhamaaz/neural-canvas/cnn_models/checkpoints_finetuned/best_finetuned_macro*.pt")
+        # Check multiple possible locations
+        finetuned_checkpoints = []
+        finetuned_checkpoints.extend(glob.glob("/cs/student/projects1/2023/muhamaaz/neural-canvas/cnn_models/checkpoints/best_models/*.pt"))
+        finetuned_checkpoints.extend(glob.glob("/cs/student/projects1/2023/muhamaaz/neural-canvas/cnn_models/checkpoints_finetuned/best_finetuned_macro*.pt"))
+        finetuned_checkpoints.extend(glob.glob("/cs/student/projects1/2023/muhamaaz/neural-canvas/cnn_models/checkpoints/*timm*.pt"))
+        finetuned_checkpoints.extend(glob.glob("/cs/student/projects1/2023/muhamaaz/neural-canvas/cnn_models/checkpoints/*convnext*.pt"))
+        
         if finetuned_checkpoints:
-            best_ckpt = max(finetuned_checkpoints, key=lambda x: float(x.split('macro')[1].split('.pt')[0]))
+            # Prefer checkpoints with macro in name, otherwise use most recent
+            macro_checkpoints = [c for c in finetuned_checkpoints if 'macro' in c.lower()]
+            if macro_checkpoints:
+                best_ckpt = max(macro_checkpoints, key=lambda x: float(x.split('macro')[1].split('.pt')[0]) if 'macro' in x else 0)
+            else:
+                best_ckpt = max(finetuned_checkpoints, key=lambda x: os.path.getmtime(x))
             print(f"Loading checkpoint: {best_ckpt}")
             ckpt = torch.load(best_ckpt, map_location=device, weights_only=False)
             
@@ -148,10 +163,10 @@ def load_models():
                 cnn_model_finetuned.load_state_dict(ckpt)
             
             macro_acc = ckpt.get('macro_acc', ckpt.get('best_macro_acc', 0))
-            print(f"✓ Fine-tuned ResNet50 loaded (macro acc: {macro_acc:.2%})")
+            print(f"✓ Fine-tuned model loaded (macro acc: {macro_acc:.2%})")
             cnn_model_finetuned.eval()
         else:
-            print("⚠ Fine-tuned checkpoint not found")
+            print("⚠ Fine-tuned checkpoint not found - will use scratch model only")
             cnn_model_finetuned = None
     except Exception as e:
         print(f"⚠ Could not load fine-tuned CNN: {e}")
@@ -175,10 +190,11 @@ def load_models():
     llm_model1.eval()
     print("✓ Model 1 loaded")
     
-    # Load LLM Model 2 (Fine-tuned) - try GPT-2 Medium first, fallback to DistilGPT-2
-    print("Loading LLM Model 2 (Fine-tuned)...")
+    # Load LLM Model 2 (Fine-tuned GPT-2 Medium - 355M params)
+    print("Loading LLM Model 2 (Fine-tuned GPT-2 Medium - 355M params)...")
     model2_path = "/cs/student/projects1/2023/muhamaaz/checkpoints/model2_cnn_explainer_gpt2medium/best_model_hf"
     if not os.path.exists(model2_path):
+        # Fallback to older fine-tuned model
         model2_path = "/cs/student/projects1/2023/muhamaaz/checkpoints/cnn_explainer_finetuned/best_model_hf"
     
     if os.path.exists(model2_path):
@@ -281,13 +297,32 @@ Explain this classification:"""
     response = tokenizer.decode(output[0], skip_special_tokens=True)
     explanation = response[len(prompt):].strip()
     
+    # Remove conversational markers that the model learned from training data
+    # The models were trained on OpenAssistant/Anthropic HH which includes these formats
+    conversational_markers = [
+        "Assistant:", "User:", "Response:", "Human:", "Expert:",
+        "assistant:", "user:", "response:", "human:", "expert:",
+        "ASSISTANT:", "USER:", "RESPONSE:", "HUMAN:", "EXPERT:"
+    ]
+    
+    # Remove markers at the start
+    for marker in conversational_markers:
+        if explanation.startswith(marker):
+            explanation = explanation[len(marker):].strip()
+        # Also remove if it appears after newlines
+        explanation = explanation.replace(f"\n{marker}", "\n").replace(f"\n\n{marker}", "\n\n")
+    
+    # Remove any remaining "respond" or similar prefixes
+    import re
+    explanation = re.sub(r'^(respond|Respond|RESPOND)[:\s]+', '', explanation, flags=re.IGNORECASE)
+    
     # Get complete sentences
     for end in ['. ', '! ', '? ']:
         last_idx = explanation.rfind(end)
         if last_idx > 50:
-            return explanation[:last_idx+1]
+            return explanation[:last_idx+1].strip()
     
-    return explanation
+    return explanation.strip()
 
 
 @app.get("/")
