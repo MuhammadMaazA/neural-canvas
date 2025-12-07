@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """
-Neural Canvas Backend API
-=========================
-FastAPI backend for CNN image classification and LLM explanations
+Neural Canvas Backend API (FastAPI - DEPRECATED)
+================================================
+NOTE: This FastAPI backend is DEPRECATED. 
+The primary backend is now Flask at: frontend/backend/app.py
+
+This file is kept for reference only.
 """
 
 import os
