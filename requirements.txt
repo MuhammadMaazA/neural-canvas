@@ -39,3 +39,4 @@ codecarbon>=2.2.0  # Track CO2 emissions
 
 # Optional: Better progress bars
 rich>=13.4.0
+groq
