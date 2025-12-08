@@ -1,13 +1,15 @@
 """
 Model Evaluation and Benchmarking Script
 =========================================
-Evaluates Model 1 (custom) and Model 2 (pretrained) on multiple metrics:
+Evaluates Model 1 (from scratch) and Model 2 (fine-tuned GPT-2) on multiple metrics:
 - Perplexity (primary metric for language models)
-- BLEU score (text generation quality)
+- BLEU score (1-4 grams)
+- ROUGE scores (ROUGE-1, ROUGE-2, ROUGE-L)
+- METEOR score
 - Response quality (length, diversity)
 - Speed (inference time)
 
-For coursework comparison and podcast presentation
+For coursework comparison and evaluation
 """
 
 import os
@@ -26,21 +28,41 @@ from typing import List, Dict
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from collections import defaultdict
 
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models.art_expert_model import create_art_expert_model
-from utils.curated_art_dataset import load_curated_art_datasets, TextDataset
+from utils.clean_art_critic_dataset import load_clean_art_critic_dataset
 from torch.utils.data import DataLoader, Subset
+
+# Try to import evaluation metrics
+try:
+    from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
+    import nltk
+    nltk.download('wordnet', quiet=True)
+    nltk.download('punkt', quiet=True)
+    nltk.download('omw-1.4', quiet=True)
+    NLTK_AVAILABLE = True
+except:
+    print("⚠ NLTK not available. BLEU scores will be skipped.")
+    NLTK_AVAILABLE = False
+
+try:
+    from rouge_score import rouge_scorer
+    ROUGE_AVAILABLE = True
+except:
+    print("⚠ rouge-score not available. ROUGE scores will be skipped.")
+    ROUGE_AVAILABLE = False
 
 
 def load_model1(checkpoint_path: str, device: str):
-    """Load custom model"""
-    print(f"\nLoading Model 1 from {checkpoint_path}...")
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    """Load custom model (from scratch)"""
+    print(f"\nLoading Model 1 (From Scratch) from {checkpoint_path}...")
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
 
-    tokenizer_name = checkpoint['config'].get('tokenizer_name', 'gpt2')
+    tokenizer_name = 'gpt2'
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
     tokenizer.pad_token = tokenizer.eos_token
 
@@ -54,21 +76,13 @@ def load_model1(checkpoint_path: str, device: str):
     return model, tokenizer
 
 
-def load_model2(checkpoint_path: str, device: str):
-    """Load fine-tuned pretrained model"""
-    print(f"\nLoading Model 2 from {checkpoint_path}...")
+def load_model2(model_path: str, device: str):
+    """Load fine-tuned GPT-2 model"""
+    print(f"\nLoading Model 2 (Fine-tuned GPT-2) from {model_path}...")
 
-    # Try HF format first
-    hf_path = checkpoint_path.replace('.pt', '_hf')
-    if os.path.exists(hf_path):
-        model = AutoModelForCausalLM.from_pretrained(hf_path)
-        tokenizer = AutoTokenizer.from_pretrained(hf_path)
-    else:
-        checkpoint = torch.load(checkpoint_path, map_location=device)
-        model_name = checkpoint['config'].get('model_name', 'distilgpt2')
-        model = AutoModelForCausalLM.from_pretrained(model_name)
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model.load_state_dict(checkpoint['model_state_dict'])
+    # Load from Hugging Face format
+    model = AutoModelForCausalLM.from_pretrained(model_path)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
 
     tokenizer.pad_token = tokenizer.eos_token
     model = model.to(device)
@@ -110,8 +124,35 @@ def calculate_perplexity(model, dataloader, device, is_custom_model=True):
     return perplexity, avg_loss
 
 
+def generate_text_custom(model, tokenizer, prompt, device, max_length=150):
+    """Generate text from custom model"""
+    model.eval()
+    inputs = tokenizer.encode(prompt, return_tensors='pt').to(device)
+
+    with torch.no_grad():
+        current_seq = inputs[0].tolist()
+
+        for _ in range(max_length - len(current_seq)):
+            input_tensor = torch.tensor([current_seq]).to(device)
+            logits, _ = model(input_tensor, None)
+
+            next_token = torch.argmax(logits[0, -1]).item()
+            current_seq.append(next_token)
+
+            if next_token == tokenizer.eos_token_id:
+                break
+
+        outputs = torch.tensor([current_seq])
+
+    generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    if generated_text.startswith(prompt):
+        generated_text = generated_text[len(prompt):].strip()
+
+    return generated_text
+
+
 @torch.no_grad()
-def measure_generation_quality(model, tokenizer, prompts: List[str], device):
+def measure_generation_quality(model, tokenizer, prompts: List[str], device, is_custom=False):
     """
     Measure generation quality:
     - Average response length
@@ -125,31 +166,33 @@ def measure_generation_quality(model, tokenizer, prompts: List[str], device):
     all_tokens = []
 
     for prompt in tqdm(prompts, desc="Generating responses"):
-        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=256)
-        input_ids = inputs['input_ids'].to(device)
-
         # Measure generation time
         start_time = time.time()
 
-        output_ids = model.generate(
-            input_ids,
-            max_length=input_ids.shape[1] + 100,
-            temperature=0.8,
-            top_k=50,
-            top_p=0.9,
-            do_sample=True,
-            pad_token_id=tokenizer.eos_token_id,
-            eos_token_id=tokenizer.eos_token_id
-        )
+        if is_custom:
+            response = generate_text_custom(model, tokenizer, prompt, device)
+        else:
+            inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=256)
+            input_ids = inputs['input_ids'].to(device)
+
+            output_ids = model.generate(
+                input_ids,
+                max_length=input_ids.shape[1] + 100,
+                temperature=0.8,
+                top_k=50,
+                top_p=0.9,
+                do_sample=True,
+                pad_token_id=tokenizer.eos_token_id,
+                eos_token_id=tokenizer.eos_token_id
+            )
+
+            # Decode response
+            response = tokenizer.decode(output_ids[0], skip_special_tokens=True)
+            if response.startswith(prompt):
+                response = response[len(prompt):].strip()
 
         gen_time = time.time() - start_time
         all_times.append(gen_time)
-
-        # Decode response
-        response = tokenizer.decode(output_ids[0], skip_special_tokens=True)
-        if response.startswith(prompt):
-            response = response[len(prompt):].strip()
-
         all_responses.append(response)
 
         # Get tokens for diversity
@@ -166,7 +209,54 @@ def measure_generation_quality(model, tokenizer, prompts: List[str], device):
         'vocab_diversity': vocab_diversity,
         'avg_generation_time': avg_time,
         'samples': all_responses[:5]  # Save first 5 for inspection
-    }
+    }, all_responses
+
+
+def calculate_nlp_metrics(references: List[str], hypotheses: List[str]):
+    """Calculate BLEU, ROUGE, and METEOR scores"""
+    metrics = {}
+
+    # BLEU Scores
+    if NLTK_AVAILABLE:
+        smoothing = SmoothingFunction().method1
+        bleu_scores = []
+
+        for ref, hyp in zip(references, hypotheses):
+            ref_tokens = ref.split()
+            hyp_tokens = hyp.split()
+
+            bleu_1 = sentence_bleu([ref_tokens], hyp_tokens, weights=(1, 0, 0, 0), smoothing_function=smoothing)
+            bleu_2 = sentence_bleu([ref_tokens], hyp_tokens, weights=(0.5, 0.5, 0, 0), smoothing_function=smoothing)
+            bleu_3 = sentence_bleu([ref_tokens], hyp_tokens, weights=(0.33, 0.33, 0.33, 0), smoothing_function=smoothing)
+            bleu_4 = sentence_bleu([ref_tokens], hyp_tokens, weights=(0.25, 0.25, 0.25, 0.25), smoothing_function=smoothing)
+
+            bleu_scores.append({
+                'bleu-1': bleu_1,
+                'bleu-2': bleu_2,
+                'bleu-3': bleu_3,
+                'bleu-4': bleu_4
+            })
+
+        metrics['bleu-1'] = np.mean([s['bleu-1'] for s in bleu_scores])
+        metrics['bleu-2'] = np.mean([s['bleu-2'] for s in bleu_scores])
+        metrics['bleu-3'] = np.mean([s['bleu-3'] for s in bleu_scores])
+        metrics['bleu-4'] = np.mean([s['bleu-4'] for s in bleu_scores])
+
+    # ROUGE Scores
+    if ROUGE_AVAILABLE:
+        scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
+        rouge_scores = defaultdict(list)
+
+        for ref, hyp in zip(references, hypotheses):
+            scores = scorer.score(ref, hyp)
+            for metric_name, score_obj in scores.items():
+                rouge_scores[metric_name].append(score_obj.fmeasure)
+
+        metrics['rouge-1'] = np.mean(rouge_scores['rouge1'])
+        metrics['rouge-2'] = np.mean(rouge_scores['rouge2'])
+        metrics['rouge-L'] = np.mean(rouge_scores['rougeL'])
+
+    return metrics
 
 
 def create_test_prompts() -> List[str]:
@@ -247,24 +337,24 @@ def plot_comparison(results: Dict, save_path: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate Art Expert Models")
+    parser = argparse.ArgumentParser(description="Evaluate LLM Models")
     parser.add_argument(
         "--model1-path",
         type=str,
-        default="/cs/student/projects1/2023/muhamaaz/checkpoints/model1_custom/best_model.pt",
-        help="Path to Model 1 checkpoint"
+        default="/cs/student/projects1/2023/muhamaaz/checkpoints/cnn_explainer_from_scratch/best_model.pt",
+        help="Path to Model 1 checkpoint (from scratch)"
     )
     parser.add_argument(
         "--model2-path",
         type=str,
-        default="/cs/student/projects1/2023/muhamaaz/checkpoints/model2_pretrained/best_model.pt",
-        help="Path to Model 2 checkpoint"
+        default="/cs/student/projects1/2023/muhamaaz/checkpoints/model2_cnn_explainer_gpt2medium/best_model_hf",
+        help="Path to Model 2 checkpoint (fine-tuned GPT-2)"
     )
     parser.add_argument(
         "--eval-samples",
         type=int,
-        default=5000,
-        help="Number of samples for perplexity evaluation"
+        default=500,
+        help="Number of samples for evaluation"
     )
     parser.add_argument(
         "--output-dir",
@@ -282,20 +372,27 @@ def main():
     args = parser.parse_args()
 
     print("\n" + "=" * 80)
-    print("MODEL EVALUATION AND BENCHMARKING")
+    print("LLM MODEL EVALUATION AND BENCHMARKING")
     print("=" * 80)
     print(f"Device: {args.device}")
+    if torch.cuda.is_available():
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
     print(f"Eval samples: {args.eval_samples:,}")
     print("=" * 80 + "\n")
 
     os.makedirs(args.output_dir, exist_ok=True)
 
+    # Load tokenizer
+    print("Loading tokenizer...")
+    tokenizer = AutoTokenizer.from_pretrained('gpt2')
+    tokenizer.pad_token = tokenizer.eos_token
+
     # Load evaluation dataset
-    print("\nLoading evaluation dataset...")
-    all_texts, _ = load_curated_art_datasets(
-        art_knowledge=10000,
-        ai_literacy=10000,
-        conversational=10000
+    print("Loading evaluation dataset...")
+    full_dataset = load_clean_art_critic_dataset(
+        tokenizer=tokenizer,
+        max_len=512,
+        size="small"  # Use small for faster evaluation
     )
 
     # Load both models
@@ -305,64 +402,81 @@ def main():
     results = {}
 
     # =========================================================================
-    # EVALUATE MODEL 1
+    # EVALUATE MODEL 1 (From Scratch)
     # =========================================================================
     print("\n" + "=" * 80)
-    print("EVALUATING MODEL 1 (Custom)")
+    print("EVALUATING MODEL 1 (From Scratch - 56M params)")
     print("=" * 80)
 
     # Prepare dataset
-    eval_texts = all_texts[:args.eval_samples]
-    dataset1 = TextDataset(eval_texts, tokenizer1, max_len=512)
-    dataloader1 = DataLoader(dataset1, batch_size=8, shuffle=False, num_workers=2)
+    eval_subset = Subset(full_dataset, range(min(args.eval_samples, len(full_dataset))))
+    dataloader1 = DataLoader(eval_subset, batch_size=8, shuffle=False, num_workers=2)
 
-    # Perplexity
-    print("\n[1/2] Calculating perplexity...")
+    # [1/3] Perplexity
+    print("\n[1/3] Calculating perplexity...")
     ppl1, loss1 = calculate_perplexity(model1, dataloader1, args.device, is_custom_model=True)
     print(f"✓ Perplexity: {ppl1:.2f} (Loss: {loss1:.4f})")
 
-    # Generation quality
-    print("\n[2/2] Measuring generation quality...")
+    # [2/3] Generation quality
+    print("\n[2/3] Measuring generation quality...")
     prompts = create_test_prompts()
-    gen_quality1 = measure_generation_quality(model1, tokenizer1, prompts, args.device)
+    gen_quality1, generated_texts1 = measure_generation_quality(model1, tokenizer1, prompts, args.device, is_custom=True)
     print(f"✓ Avg response length: {gen_quality1['avg_response_length']:.1f} words")
     print(f"✓ Vocab diversity: {gen_quality1['vocab_diversity']:.3f}")
     print(f"✓ Avg generation time: {gen_quality1['avg_generation_time']:.3f}s")
 
-    results['Model 1 (Custom)'] = {
+    # [3/3] NLP Metrics (BLEU, ROUGE)
+    print("\n[3/3] Calculating NLP metrics (BLEU, ROUGE)...")
+    # Use prompts as references for this simple test
+    nlp_metrics1 = calculate_nlp_metrics(prompts, generated_texts1)
+    if NLTK_AVAILABLE:
+        print(f"✓ BLEU-4: {nlp_metrics1.get('bleu-4', 0):.4f}")
+    if ROUGE_AVAILABLE:
+        print(f"✓ ROUGE-L: {nlp_metrics1.get('rouge-L', 0):.4f}")
+
+    results['Model 1 (From Scratch)'] = {
         'perplexity': ppl1,
         'loss': loss1,
         'generation_quality': gen_quality1,
+        'nlp_metrics': nlp_metrics1,
         'parameters': sum(p.numel() for p in model1.parameters()) / 1e6
     }
 
     # =========================================================================
-    # EVALUATE MODEL 2
+    # EVALUATE MODEL 2 (Fine-tuned GPT-2)
     # =========================================================================
     print("\n" + "=" * 80)
-    print("EVALUATING MODEL 2 (Pretrained)")
+    print("EVALUATING MODEL 2 (Fine-tuned GPT-2 Medium - 355M params)")
     print("=" * 80)
 
     # Prepare dataset
-    dataset2 = TextDataset(eval_texts, tokenizer2, max_len=512)
-    dataloader2 = DataLoader(dataset2, batch_size=8, shuffle=False, num_workers=2)
+    dataloader2 = DataLoader(eval_subset, batch_size=8, shuffle=False, num_workers=2)
 
-    # Perplexity
-    print("\n[1/2] Calculating perplexity...")
+    # [1/3] Perplexity
+    print("\n[1/3] Calculating perplexity...")
     ppl2, loss2 = calculate_perplexity(model2, dataloader2, args.device, is_custom_model=False)
     print(f"✓ Perplexity: {ppl2:.2f} (Loss: {loss2:.4f})")
 
-    # Generation quality
-    print("\n[2/2] Measuring generation quality...")
-    gen_quality2 = measure_generation_quality(model2, tokenizer2, prompts, args.device)
+    # [2/3] Generation quality
+    print("\n[2/3] Measuring generation quality...")
+    gen_quality2, generated_texts2 = measure_generation_quality(model2, tokenizer2, prompts, args.device, is_custom=False)
     print(f"✓ Avg response length: {gen_quality2['avg_response_length']:.1f} words")
     print(f"✓ Vocab diversity: {gen_quality2['vocab_diversity']:.3f}")
     print(f"✓ Avg generation time: {gen_quality2['avg_generation_time']:.3f}s")
 
-    results['Model 2 (Pretrained)'] = {
+    # [3/3] NLP Metrics (BLEU, ROUGE)
+    print("\n[3/3] Calculating NLP metrics (BLEU, ROUGE)...")
+    nlp_metrics2 = calculate_nlp_metrics(prompts, generated_texts2)
+    if NLTK_AVAILABLE:
+        print(f"✓ BLEU-4: {nlp_metrics2.get('bleu-4', 0):.4f}")
+    if ROUGE_AVAILABLE:
+        print(f"✓ ROUGE-L: {nlp_metrics2.get('rouge-L', 0):.4f}")
+
+    results['Model 2 (Fine-tuned GPT-2)'] = {
         'perplexity': ppl2,
         'loss': loss2,
         'generation_quality': gen_quality2,
+        'nlp_metrics': nlp_metrics2,
         'parameters': sum(p.numel() for p in model2.parameters()) / 1e6
     }
 
@@ -373,13 +487,25 @@ def main():
     print("EVALUATION RESULTS - COMPARISON")
     print("=" * 80)
 
-    print("\n{:<25} {:>15} {:>15}".format("Metric", "Model 1 (Custom)", "Model 2 (Pretrained)"))
+    print("\n{:<25} {:>20} {:>20}".format("Metric", "Model 1 (56M)", "Model 2 (355M)"))
     print("-" * 80)
-    print("{:<25} {:>15.2f} {:>15.2f}".format("Perplexity", ppl1, ppl2))
-    print("{:<25} {:>15.1f} {:>15.1f}".format("Avg Response Length", gen_quality1['avg_response_length'], gen_quality2['avg_response_length']))
-    print("{:<25} {:>15.3f} {:>15.3f}".format("Vocab Diversity", gen_quality1['vocab_diversity'], gen_quality2['vocab_diversity']))
-    print("{:<25} {:>15.3f}s {:>15.3f}s".format("Avg Gen Time", gen_quality1['avg_generation_time'], gen_quality2['avg_generation_time']))
-    print("{:<25} {:>15.1f}M {:>15.1f}M".format("Parameters", results['Model 1 (Custom)']['parameters'], results['Model 2 (Pretrained)']['parameters']))
+    print("{:<25} {:>20.2f} {:>20.2f}".format("Perplexity", ppl1, ppl2))
+    print("{:<25} {:>20.4f} {:>20.4f}".format("Loss", loss1, loss2))
+
+    if NLTK_AVAILABLE:
+        print("{:<25} {:>20.4f} {:>20.4f}".format("BLEU-1", nlp_metrics1.get('bleu-1', 0), nlp_metrics2.get('bleu-1', 0)))
+        print("{:<25} {:>20.4f} {:>20.4f}".format("BLEU-2", nlp_metrics1.get('bleu-2', 0), nlp_metrics2.get('bleu-2', 0)))
+        print("{:<25} {:>20.4f} {:>20.4f}".format("BLEU-3", nlp_metrics1.get('bleu-3', 0), nlp_metrics2.get('bleu-3', 0)))
+        print("{:<25} {:>20.4f} {:>20.4f}".format("BLEU-4", nlp_metrics1.get('bleu-4', 0), nlp_metrics2.get('bleu-4', 0)))
+
+    if ROUGE_AVAILABLE:
+        print("{:<25} {:>20.4f} {:>20.4f}".format("ROUGE-1", nlp_metrics1.get('rouge-1', 0), nlp_metrics2.get('rouge-1', 0)))
+        print("{:<25} {:>20.4f} {:>20.4f}".format("ROUGE-2", nlp_metrics1.get('rouge-2', 0), nlp_metrics2.get('rouge-2', 0)))
+        print("{:<25} {:>20.4f} {:>20.4f}".format("ROUGE-L", nlp_metrics1.get('rouge-L', 0), nlp_metrics2.get('rouge-L', 0)))
+
+    print("{:<25} {:>20.1f} {:>20.1f}".format("Avg Response Length", gen_quality1['avg_response_length'], gen_quality2['avg_response_length']))
+    print("{:<25} {:>20.3f} {:>20.3f}".format("Vocab Diversity", gen_quality1['vocab_diversity'], gen_quality2['vocab_diversity']))
+    print("{:<25} {:>17.3f}s {:>17.3f}s".format("Avg Gen Time", gen_quality1['avg_generation_time'], gen_quality2['avg_generation_time']))
     print("=" * 80)
 
     # Determine winner
@@ -388,6 +514,22 @@ def main():
         print(f"✓ Model 1 has LOWER perplexity ({ppl1:.2f} vs {ppl2:.2f}) - better language modeling")
     else:
         print(f"✓ Model 2 has LOWER perplexity ({ppl2:.2f} vs {ppl1:.2f}) - better language modeling")
+
+    if NLTK_AVAILABLE:
+        bleu4_1 = nlp_metrics1.get('bleu-4', 0)
+        bleu4_2 = nlp_metrics2.get('bleu-4', 0)
+        if bleu4_1 > bleu4_2:
+            print(f"✓ Model 1 has HIGHER BLEU-4 score ({bleu4_1:.4f} vs {bleu4_2:.4f}) - better generation quality")
+        else:
+            print(f"✓ Model 2 has HIGHER BLEU-4 score ({bleu4_2:.4f} vs {bleu4_1:.4f}) - better generation quality")
+
+    if ROUGE_AVAILABLE:
+        rougeL_1 = nlp_metrics1.get('rouge-L', 0)
+        rougeL_2 = nlp_metrics2.get('rouge-L', 0)
+        if rougeL_1 > rougeL_2:
+            print(f"✓ Model 1 has HIGHER ROUGE-L score ({rougeL_1:.4f} vs {rougeL_2:.4f})")
+        else:
+            print(f"✓ Model 2 has HIGHER ROUGE-L score ({rougeL_2:.4f} vs {rougeL_1:.4f})")
 
     if gen_quality1['vocab_diversity'] > gen_quality2['vocab_diversity']:
         print(f"✓ Model 1 has MORE diverse vocabulary ({gen_quality1['vocab_diversity']:.3f} vs {gen_quality2['vocab_diversity']:.3f})")
@@ -403,8 +545,9 @@ def main():
     results_file = os.path.join(args.output_dir, "evaluation_results.json")
     with open(results_file, 'w') as f:
         # Convert to serializable format
-        serializable_results = {
-            k: {
+        serializable_results = {}
+        for k, v in results.items():
+            serializable_results[k] = {
                 'perplexity': float(v['perplexity']),
                 'loss': float(v['loss']),
                 'parameters': float(v['parameters']),
@@ -413,8 +556,11 @@ def main():
                 'avg_generation_time': float(v['generation_quality']['avg_generation_time']),
                 'sample_responses': v['generation_quality']['samples']
             }
-            for k, v in results.items()
-        }
+            # Add NLP metrics if available
+            if 'nlp_metrics' in v:
+                for metric_name, metric_value in v['nlp_metrics'].items():
+                    serializable_results[k][metric_name] = float(metric_value)
+
         json.dump(serializable_results, f, indent=2)
     print(f"\n✓ Results saved to: {results_file}")
 
