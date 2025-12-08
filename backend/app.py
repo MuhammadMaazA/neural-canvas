@@ -21,6 +21,7 @@ import sys
 import re
 import numpy as np
 import requests
+from groq import Groq
 
 # Add paths
 sys.path.append('/cs/student/projects1/2023/muhamaaz/neural-canvas')
@@ -40,16 +41,21 @@ cnn_model_scratch = None  # CNN from scratch
 cnn_model_finetuned = None  # Fine-tuned ResNet50
 llm_model1 = None
 llm_model2 = None
+llm_model3_client = None  # Groq API client
 tokenizer = None
 device = None
 artist_names = None
 style_names = None
 genre_names = None
 
+# Groq API configuration
+GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')  # Set via environment variable
+GROQ_MODEL = "llama-3.2-1b-preview"
+
 
 def load_models():
     """Load all models on startup"""
-    global cnn_model_scratch, cnn_model_finetuned, llm_model1, llm_model2, tokenizer, device, artist_names, style_names, genre_names
+    global cnn_model_scratch, cnn_model_finetuned, llm_model1, llm_model2, llm_model3_client, tokenizer, device, artist_names, style_names, genre_names
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Loading models on {device}...")
@@ -197,7 +203,16 @@ def load_models():
     else:
         print("⚠ Model 2 not found, using Model 1 only")
         llm_model2 = None
-    
+
+    # Load LLM Model 3 (Groq API - Llama 3.2 1B)
+    print("Loading LLM Model 3 (Groq API - Llama 3.2 1B)...")
+    try:
+        llm_model3_client = Groq(api_key=GROQ_API_KEY)
+        print("✓ Model 3 (Groq) loaded")
+    except Exception as e:
+        print(f"⚠ Model 3 (Groq) failed to load: {e}")
+        llm_model3_client = None
+
     print("✅ All models loaded!")
 
 
@@ -258,8 +273,39 @@ def predict_cnn(image: Image.Image, model_type: str = "scratch") -> dict:
 
 def generate_explanation(prediction: dict, model_num: int = 1, max_tokens: int = 150) -> str:
     """Generate LLM explanation for CNN prediction"""
-    global llm_model1, llm_model2, tokenizer, device
-    
+    global llm_model1, llm_model2, llm_model3_client, tokenizer, device
+
+    # Handle Model 3 (Groq API)
+    if model_num == 3:
+        if llm_model3_client is None:
+            return "Model 3 (Groq) not available"
+
+        prompt = f"""You are an art expert. Explain this artwork classification in 2-3 clear sentences.
+
+Artist: {prediction['artist']}
+Style: {prediction['style']}
+Genre: {prediction['genre']}
+
+Provide a concise art historical analysis explaining why this classification makes sense based on the artist's known style and the characteristics of {prediction['style']} art."""
+
+        try:
+            completion = llm_model3_client.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=0.7,
+                top_p=0.9
+            )
+            explanation = completion.choices[0].message.content.strip()
+            print(f"\n[MODEL 3 - GROQ] OUTPUT: {explanation[:200]}...\n")
+
+            # Basic cleanup
+            explanation = re.sub(r'^(Assistant|Response):\s*', '', explanation, flags=re.IGNORECASE)
+            return explanation
+        except Exception as e:
+            print(f"[MODEL 3 - GROQ] Error: {e}")
+            return f"{prediction['artist']} is renowned for {prediction['style']} style artwork. This {prediction['genre']} piece exemplifies the characteristic techniques and visual elements of the {prediction['style']} movement."
+
     model = llm_model1 if model_num == 1 else llm_model2
     if model is None:
         return "Model not available"
@@ -438,7 +484,8 @@ def health():
             "cnn_scratch": cnn_model_scratch is not None,
             "cnn_finetuned": cnn_model_finetuned is not None,
             "llm_model1": llm_model1 is not None,
-            "llm_model2": llm_model2 is not None
+            "llm_model2": llm_model2 is not None,
+            "llm_model3_groq": llm_model3_client is not None
         },
         "device": str(device)
     })
@@ -537,15 +584,19 @@ def explain_classification():
     
     model = data.get('model', 'both')
     explanations = []
-    
-    if model in ["model1", "both"]:
+
+    if model in ["model1", "both", "all"]:
         exp1 = generate_explanation(prediction, model_num=1)
         explanations.append({"model": "model1", "explanation": exp1})
-    
-    if model in ["model2", "both"] and llm_model2 is not None:
+
+    if model in ["model2", "both", "all"] and llm_model2 is not None:
         exp2 = generate_explanation(prediction, model_num=2)
         explanations.append({"model": "model2", "explanation": exp2})
-    
+
+    if model in ["model3", "all"] and llm_model3_client is not None:
+        exp3 = generate_explanation(prediction, model_num=3)
+        explanations.append({"model": "model3", "explanation": exp3})
+
     return jsonify(explanations)
 
 
