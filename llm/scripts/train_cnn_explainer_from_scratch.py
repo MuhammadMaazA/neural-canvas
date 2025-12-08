@@ -1,89 +1,98 @@
 #!/usr/bin/env python3
 """
-MODEL 2: Fine-tune Pretrained Model for CNN Explanation
-=========================================================
-Fine-tunes GPT-2 Medium (355M params) to explain CNN art classifications.
+Train From-Scratch Model to Explain CNN Outputs
+================================================
+MODEL 1: Custom transformer trained on 3 DATASETS (COURSEWORK REQUIREMENT)
 
-Uses same comprehensive dataset as Model 1:
-- CNN output → explanation pairs
-- WikiArt metadata (real artists, styles, genres)
-- Art knowledge database
-- Conversational quality data
+Datasets (Total ~210K samples):
+1. WikiArt (~120K) - Art historical knowledge and terminology
+2. ELI5 (~40K) - Clear AI concept explanations in simple language
+3. OpenAssistant (~50K) - Natural conversational dialogue patterns
 
-This is the FINE-TUNED model for coursework comparison.
+This trains your Art Expert model to:
+1. Generate educational explanations about art and AI
+2. Communicate with proper English fluency (from real human text)
+3. Explain CNN outputs in accessible language
 """
 
-# Set cache directories FIRST
 import os
 os.environ['HF_HOME'] = '/cs/student/projects1/2023/muhamaaz/datasets'
 os.environ['HF_DATASETS_CACHE'] = '/cs/student/projects1/2023/muhamaaz/datasets'
 os.environ['TRANSFORMERS_CACHE'] = '/cs/student/projects1/2023/muhamaaz/datasets'
 
-import sys
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
 import time
 import logging
 from datetime import datetime
 from tqdm import tqdm
 import numpy as np
-from transformers import AutoTokenizer, AutoModelForCausalLM, get_cosine_schedule_with_warmup
+import sys
+sys.path.append('/cs/student/projects1/2023/muhamaaz/neural-canvas')
+
+from transformers import GPT2Tokenizer, get_cosine_schedule_with_warmup
+from llm.models.art_expert_model import ArtExpertTransformer
+from llm.utils.curated_art_dataset import load_combined_art_datasets
+
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-# Add parent directory to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.cnn_explainer_dataset import load_cnn_explainer_dataset
+class TrainingConfig:
+    """Training configuration"""
+    # Model
+    VOCAB_SIZE = 50257  # GPT-2 vocab
+    DIM = 512
+    N_LAYERS = 8
+    N_HEADS = 8
+    N_KV_HEADS = 2
+    MAX_LEN = 512
+    DROPOUT = 0.1
+    LABEL_SMOOTHING = 0.1
 
+    # Dataset (COURSEWORK: 3 datasets required)
+    # WikiArt (~120K) + ELI5 (~40K) + OpenAssistant (~50K) = ~210K total
+    USE_WIKIART = True
+    USE_ELI5 = True
+    USE_OPENASSISTANT = True
 
-class FineTuningConfig:
-    """Configuration for Model 2 (fine-tuning)"""
-    
-    # Model - using GPT-2 Medium (better quality, 355M params)
-    MODEL_NAME = "gpt2-medium"  # 355M params - better than distilgpt2 (82M) or gpt2 (124M)
-    MAX_SEQ_LEN = 512
-    
-    # Dataset size
-    DATASET_SIZE = "medium"  # "small", "medium", or "large"
-    
-    # Fine-tuning hyperparameters (more conservative than training from scratch)
-    NUM_EPOCHS = 8  # Fewer epochs needed (converges faster with better model)
-    BATCH_SIZE = 4   # Smaller batch for larger model (355M needs more memory)
-    GRADIENT_ACCUMULATION_STEPS = 8  # Effective batch = 32 (4*8)
-    LEARNING_RATE = 2e-5  # MUCH lower for fine-tuning!
-    WEIGHT_DECAY = 0.01
+    # Training
+    NUM_EPOCHS = 20
+    BATCH_SIZE = 16
+    GRADIENT_ACCUMULATION_STEPS = 2  # Effective batch = 32
+    LEARNING_RATE = 3e-4
+    WEIGHT_DECAY = 0.1
     GRAD_CLIP = 1.0
-    WARMUP_RATIO = 0.05
-    
+    WARMUP_RATIO = 0.1
+
     # Early stopping
-    PATIENCE = 3
-    
-    # Validation
+    PATIENCE = 5
+
+    # Splits
     TRAIN_SPLIT = 0.95
     VAL_SPLIT = 0.05
-    
+
     # Paths
-    CHECKPOINT_DIR = "/cs/student/projects1/2023/muhamaaz/checkpoints/model2_cnn_explainer_gpt2medium"
+    CHECKPOINT_DIR = "/cs/student/projects1/2023/muhamaaz/checkpoints/cnn_explainer_from_scratch"
     LOG_DIR = "/cs/student/projects1/2023/muhamaaz/logs"
-    
+
     # Hardware
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     NUM_WORKERS = 4
     MIXED_PRECISION = True
-    
+
     # Logging
     LOG_INTERVAL = 100
-    SAVE_INTERVAL = 2
+    EVAL_INTERVAL = 1
 
 
-def setup_logging(log_dir: str):
-    """Setup logging"""
+def setup_logging(log_dir):
     os.makedirs(log_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = os.path.join(log_dir, f"model2_cnn_explainer_{timestamp}.log")
-    
+    log_file = os.path.join(log_dir, f"cnn_explainer_scratch_{timestamp}.log")
+
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
@@ -95,9 +104,8 @@ def setup_logging(log_dir: str):
     return logging.getLogger(__name__)
 
 
-def save_checkpoint(model, tokenizer, optimizer, scheduler, scaler, epoch, loss, config, filepath,
-                   train_losses=None, val_losses=None, val_perplexities=None, save_hf=False):
-    """Save checkpoint"""
+def save_checkpoint(model, optimizer, scheduler, scaler, epoch, loss, config, filepath,
+                   train_losses=None, val_losses=None, val_perplexities=None):
     checkpoint = {
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
@@ -109,54 +117,43 @@ def save_checkpoint(model, tokenizer, optimizer, scheduler, scaler, epoch, loss,
         'val_losses': val_losses or [],
         'val_perplexities': val_perplexities or [],
         'config': {
-            'model_name': config.MODEL_NAME,
-            'max_seq_len': config.MAX_SEQ_LEN,
+            'vocab_size': config.VOCAB_SIZE,
+            'dim': config.DIM,
+            'n_layers': config.N_LAYERS,
+            'n_heads': config.N_HEADS,
+            'n_kv_heads': config.N_KV_HEADS,
+            'max_len': config.MAX_LEN,
+            'dropout': config.DROPOUT
         }
     }
     torch.save(checkpoint, filepath)
-    logging.info(f"✓ Saved checkpoint: {filepath}")
-    
-    # Also save in HuggingFace format for easy loading
-    if save_hf:
-        hf_path = filepath.replace('.pt', '_hf')
-        model.save_pretrained(hf_path)
-        tokenizer.save_pretrained(hf_path)
-        logging.info(f"✓ Saved HuggingFace format: {hf_path}")
-
-
-def load_checkpoint(filepath: str):
-    """Load checkpoint"""
-    if not os.path.exists(filepath):
-        return None
-    return torch.load(filepath, map_location='cpu', weights_only=False)
+    logging.info(f"Checkpoint saved: {filepath}")
 
 
 def train_epoch(model, dataloader, optimizer, scheduler, scaler, device, config, logger):
-    """Train for one epoch"""
     model.train()
     total_loss = 0
     num_batches = 0
-    
-    pbar = tqdm(dataloader, desc="Fine-tuning")
-    
+
+    pbar = tqdm(dataloader, desc="Training")
+
     for batch_idx, (inputs, targets) in enumerate(pbar):
         inputs = inputs.to(device)
         targets = targets.to(device)
-        
+
         with torch.cuda.amp.autocast(enabled=config.MIXED_PRECISION):
-            outputs = model(input_ids=inputs, labels=targets)
-            loss = outputs.loss
-        
+            logits, loss = model(inputs, targets)
+
         if loss is None:
             continue
-        
+
         loss = loss / config.GRADIENT_ACCUMULATION_STEPS
-        
+
         if scaler:
             scaler.scale(loss).backward()
         else:
             loss.backward()
-        
+
         if (batch_idx + 1) % config.GRADIENT_ACCUMULATION_STEPS == 0:
             if scaler:
                 scaler.unscale_(optimizer)
@@ -166,136 +163,139 @@ def train_epoch(model, dataloader, optimizer, scheduler, scaler, device, config,
             else:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), config.GRAD_CLIP)
                 optimizer.step()
-            
+
             optimizer.zero_grad()
             if scheduler:
                 scheduler.step()
-        
+
         total_loss += loss.item() * config.GRADIENT_ACCUMULATION_STEPS
         num_batches += 1
-        
+
         current_lr = scheduler.get_last_lr()[0] if scheduler else config.LEARNING_RATE
         pbar.set_postfix({
             'loss': f"{loss.item() * config.GRADIENT_ACCUMULATION_STEPS:.4f}",
             'lr': f"{current_lr:.6f}"
         })
-        
-        if batch_idx % config.LOG_INTERVAL == 0:
-            logger.info(f"Step {batch_idx}/{len(dataloader)}, Loss: {loss.item() * config.GRADIENT_ACCUMULATION_STEPS:.4f}")
-    
-    return total_loss / num_batches if num_batches > 0 else 0
+
+    avg_loss = total_loss / num_batches if num_batches > 0 else 0
+    return avg_loss
 
 
 @torch.no_grad()
 def validate_epoch(model, dataloader, device, config):
-    """Validate model"""
     model.eval()
     total_loss = 0
     num_batches = 0
-    
+
     for inputs, targets in tqdm(dataloader, desc="Validation"):
         inputs = inputs.to(device)
         targets = targets.to(device)
-        
+
         with torch.cuda.amp.autocast(enabled=config.MIXED_PRECISION):
-            outputs = model(input_ids=inputs, labels=targets)
-            loss = outputs.loss
-        
+            logits, loss = model(inputs, targets)
+
         if loss is None:
             continue
-        
+
         total_loss += loss.item()
         num_batches += 1
-    
+
     avg_loss = total_loss / num_batches if num_batches > 0 else float('inf')
     perplexity = np.exp(avg_loss) if avg_loss < 100 else float('inf')
-    
+
     return avg_loss, perplexity
 
 
 def plot_training_curves(train_losses, val_losses, val_perplexities, save_path):
-    """Plot training curves"""
     epochs = range(1, len(train_losses) + 1)
-    
+
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
-    
+
     ax1.plot(epochs, train_losses, 'b-', label='Train Loss', linewidth=2)
     ax1.plot(epochs, val_losses, 'r-', label='Val Loss', linewidth=2)
     ax1.set_xlabel('Epoch', fontsize=12)
     ax1.set_ylabel('Loss', fontsize=12)
-    ax1.set_title('Model 2 (Fine-tuned) - CNN Explainer', fontsize=14, fontweight='bold')
+    ax1.set_title('CNN Explainer Training - From Scratch', fontsize=14, fontweight='bold')
     ax1.legend(fontsize=10)
     ax1.grid(True, alpha=0.3)
-    
+
     ax2.plot(epochs, val_perplexities, 'g-', label='Val Perplexity', linewidth=2)
     ax2.set_xlabel('Epoch', fontsize=12)
     ax2.set_ylabel('Perplexity', fontsize=12)
     ax2.set_title('Validation Perplexity', fontsize=14, fontweight='bold')
     ax2.legend(fontsize=10)
     ax2.grid(True, alpha=0.3)
-    
+
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.close()
 
 
 def main():
-    """Main fine-tuning function"""
-    config = FineTuningConfig()
+    config = TrainingConfig()
     logger = setup_logging(config.LOG_DIR)
-    
-    # Print header
+
     print("\n" + "=" * 80)
-    print("MODEL 2: CNN EXPLAINER (FINE-TUNED)")
+    print("CNN EXPLAINER - FROM SCRATCH TRAINING")
     print("=" * 80)
-    print(f"Base Model: {config.MODEL_NAME}")
-    print("Purpose: Explain CNN art classification outputs")
+    print("Task: Train LLM for art + AI literacy (CNN explanation)")
+    print("Model: Custom Art Expert Transformer (56M params)")
+    print("Datasets: 3 sources (WikiArt + ELI5 + OpenAssistant = ~210K)")
+    print("=" * 80)
     print(f"Device: {config.DEVICE}")
     if torch.cuda.is_available():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
+    print(f"Mixed Precision: {config.MIXED_PRECISION}")
     print("=" * 80 + "\n")
-    
-    logger.info("Starting Model 2 (Fine-tuned CNN Explainer) training...")
-    
-    # Create directories
+
     os.makedirs(config.CHECKPOINT_DIR, exist_ok=True)
-    
+
     # Load tokenizer
-    logger.info(f"Loading tokenizer: {config.MODEL_NAME}...")
-    tokenizer = AutoTokenizer.from_pretrained(config.MODEL_NAME)
+    logger.info("Loading tokenizer...")
+    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
     tokenizer.pad_token = tokenizer.eos_token
-    vocab_size = tokenizer.vocab_size
-    logger.info(f"Vocabulary size: {vocab_size:,}")
-    
-    # Load pretrained model
-    logger.info(f"\nLoading pretrained model: {config.MODEL_NAME}...")
-    model = AutoModelForCausalLM.from_pretrained(config.MODEL_NAME)
-    model = model.to(config.DEVICE)
-    
+
+    # Create model
+    logger.info("Creating model...")
+    model = ArtExpertTransformer(
+        vocab_size=config.VOCAB_SIZE,
+        dim=config.DIM,
+        n_layers=config.N_LAYERS,
+        n_heads=config.N_HEADS,
+        n_kv_heads=config.N_KV_HEADS,
+        max_len=config.MAX_LEN,
+        dropout=config.DROPOUT,
+        label_smoothing=config.LABEL_SMOOTHING
+    ).to(config.DEVICE)
+
     total_params = sum(p.numel() for p in model.parameters())
     logger.info(f"Total parameters: {total_params/1e6:.1f}M")
+
+    # Load 3 datasets (COURSEWORK REQUIREMENT)
+    logger.info("\nLoading 3 curated art datasets...")
+    logger.info("1. WikiArt: Art historical knowledge and terminology")
+    logger.info("2. ELI5: Clear AI concept explanations")
+    logger.info("3. OpenAssistant: Natural conversational patterns")
     
-    # Load dataset
-    logger.info(f"\nLoading CNN Explainer dataset (size: {config.DATASET_SIZE})...")
-    start_time = time.time()
-    
-    full_dataset = load_cnn_explainer_dataset(
+    full_dataset = load_combined_art_datasets(
         tokenizer=tokenizer,
-        max_len=config.MAX_SEQ_LEN,
-        size=config.DATASET_SIZE
+        max_len=config.MAX_LEN,
+        use_wikiart=config.USE_WIKIART,
+        use_eli5=config.USE_ELI5,
+        use_openassistant=config.USE_OPENASSISTANT
     )
     
-    logger.info(f"Dataset loaded in {time.time() - start_time:.1f}s")
-    
-    # Split train/val
+    logger.info(f"Total combined samples: {len(full_dataset):,}")
+
+    # Split
     train_size = int(len(full_dataset) * config.TRAIN_SPLIT)
     val_size = len(full_dataset) - train_size
     train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
-    
+
     logger.info(f"Train samples: {len(train_dataset):,}")
     logger.info(f"Val samples: {len(val_dataset):,}")
-    
-    # Create dataloaders
+
+    # Dataloaders
     train_loader = DataLoader(
         train_dataset,
         batch_size=config.BATCH_SIZE,
@@ -303,7 +303,7 @@ def main():
         num_workers=config.NUM_WORKERS,
         pin_memory=True if config.DEVICE == 'cuda' else False
     )
-    
+
     val_loader = DataLoader(
         val_dataset,
         batch_size=config.BATCH_SIZE,
@@ -311,16 +311,16 @@ def main():
         num_workers=config.NUM_WORKERS,
         pin_memory=True if config.DEVICE == 'cuda' else False
     )
-    
-    # Optimizer (lower LR for fine-tuning!)
+
+    # Optimizer
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=config.LEARNING_RATE,
         weight_decay=config.WEIGHT_DECAY,
-        betas=(0.9, 0.999),
+        betas=(0.9, 0.95),
         eps=1e-8
     )
-    
+
     # Scheduler
     num_training_steps = len(train_loader) // config.GRADIENT_ACCUMULATION_STEPS * config.NUM_EPOCHS
     warmup_steps = int(num_training_steps * config.WARMUP_RATIO)
@@ -329,65 +329,43 @@ def main():
         num_warmup_steps=warmup_steps,
         num_training_steps=num_training_steps
     )
-    
+
     logger.info(f"\nTraining steps: {num_training_steps:,}")
     logger.info(f"Warmup steps: {warmup_steps:,}")
-    
+
     # Mixed precision
     scaler = torch.cuda.amp.GradScaler() if config.MIXED_PRECISION and config.DEVICE == 'cuda' else None
-    
-    # Try to resume
+
+    # Training state
     start_epoch = 0
     best_val_loss = float('inf')
     train_losses = []
     val_losses = []
     val_perplexities = []
     patience_counter = 0
-    
-    checkpoint_path = os.path.join(config.CHECKPOINT_DIR, "latest.pt")
-    checkpoint = load_checkpoint(checkpoint_path)
-    
-    if checkpoint:
-        logger.info("Resuming from checkpoint...")
-        model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        if checkpoint.get('scheduler_state_dict'):
-            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-        if scaler and checkpoint.get('scaler_state_dict'):
-            scaler.load_state_dict(checkpoint['scaler_state_dict'])
-        
-        start_epoch = checkpoint['epoch'] + 1
-        best_val_loss = checkpoint.get('loss', float('inf'))
-        train_losses = checkpoint.get('train_losses', [])
-        val_losses = checkpoint.get('val_losses', [])
-        val_perplexities = checkpoint.get('val_perplexities', [])
-        
-        logger.info(f"Resumed from epoch {start_epoch}, best loss: {best_val_loss:.4f}")
-    else:
-        logger.info("Starting fine-tuning from pretrained weights")
-    
+
     # Training loop
-    logger.info("\nStarting fine-tuning loop...")
+    logger.info("\nStarting training...")
     training_start = time.time()
-    
+
     for epoch in range(start_epoch, config.NUM_EPOCHS):
         epoch_start = time.time()
-        
+
         logger.info(f"\n{'='*80}")
         logger.info(f"EPOCH {epoch+1}/{config.NUM_EPOCHS}")
         logger.info(f"{'='*80}")
-        
+
         # Train
         train_loss = train_epoch(model, train_loader, optimizer, scheduler, scaler, config.DEVICE, config, logger)
         train_losses.append(train_loss)
-        
+
         # Validate
         val_loss, val_perplexity = validate_epoch(model, val_loader, config.DEVICE, config)
         val_losses.append(val_loss)
         val_perplexities.append(val_perplexity)
-        
+
         epoch_time = time.time() - epoch_start
-        
+
         # Print results
         print(f"\n{'='*80}")
         print(f"EPOCH {epoch+1}/{config.NUM_EPOCHS} RESULTS")
@@ -397,51 +375,45 @@ def main():
         print(f"Val Perplexity:   {val_perplexity:.2f}")
         print(f"Epoch Time:       {epoch_time/60:.1f} min")
         print(f"{'='*80}\n")
-        
+
         # Check improvement
         if val_loss < best_val_loss:
             improvement = best_val_loss - val_loss
             best_val_loss = val_loss
             patience_counter = 0
-            
+
             best_path = os.path.join(config.CHECKPOINT_DIR, "best_model.pt")
-            save_checkpoint(model, tokenizer, optimizer, scheduler, scaler, epoch, val_loss, config, best_path,
-                          train_losses, val_losses, val_perplexities, save_hf=True)
-            
+            save_checkpoint(model, optimizer, scheduler, scaler, epoch, val_loss, config, best_path,
+                          train_losses, val_losses, val_perplexities)
             logger.info(f"✓ NEW BEST MODEL - Improved by {improvement:.4f}")
         else:
             patience_counter += 1
             logger.info(f"⚠ No improvement for {patience_counter} epoch(s)")
-            
+
             if patience_counter >= config.PATIENCE:
-                logger.info(f"\nEARLY STOPPING - No improvement for {config.PATIENCE} epochs")
+                logger.info(f"\nEARLY STOPPING")
                 break
-        
+
         # Save latest
         latest_path = os.path.join(config.CHECKPOINT_DIR, "latest.pt")
-        save_checkpoint(model, tokenizer, optimizer, scheduler, scaler, epoch, val_loss, config, latest_path,
+        save_checkpoint(model, optimizer, scheduler, scaler, epoch, val_loss, config, latest_path,
                        train_losses, val_losses, val_perplexities)
-        
+
         # Plot
         plot_path = os.path.join(config.CHECKPOINT_DIR, "training_curves.png")
         plot_training_curves(train_losses, val_losses, val_perplexities, plot_path)
-    
-    # Done
+
     total_time = time.time() - training_start
-    
+
     print(f"\n{'='*80}")
-    print("FINE-TUNING COMPLETE - MODEL 2")
+    print("TRAINING COMPLETE")
     print(f"{'='*80}")
     print(f"Total Time:       {total_time/3600:.2f} hours")
     print(f"Best Val Loss:    {best_val_loss:.4f}")
     print(f"Best Perplexity:  {np.exp(best_val_loss):.2f}")
     print(f"Best Model:       {os.path.join(config.CHECKPOINT_DIR, 'best_model.pt')}")
-    print(f"HF Format:        {os.path.join(config.CHECKPOINT_DIR, 'best_model_hf')}")
     print(f"{'='*80}\n")
-    
-    logger.info("Fine-tuning complete!")
 
 
 if __name__ == "__main__":
     main()
-
