@@ -1,12 +1,5 @@
 """
-CNN Explainer Dataset - Comprehensive Training Data
-=====================================================
-Combines:
-1. Real WikiArt metadata (artists, styles, genres with rich descriptions)
-2. CNN output → explanation pairs (learning to explain predictions)
-3. High-quality conversational data (for coherent sentence generation)
-
-This creates the BEST possible training data for explaining CNN art classifications.
+CNN Explainer Dataset with WikiArt metadata and conversational training data.
 """
 
 import os
@@ -23,10 +16,7 @@ from tqdm import tqdm
 import re
 
 
-# =============================================================================
-# RICH ART KNOWLEDGE DATABASE
-# =============================================================================
-# This contains REAL information about artists, styles, and genres from WikiArt
+# Art knowledge database from WikiArt
 
 ARTIST_INFO = {
     "Vincent van Gogh": {
@@ -388,17 +378,8 @@ GENRE_INFO = {
 }
 
 
-# =============================================================================
-# CLEAN DATASET GENERATION FUNCTIONS (NO TECHNICAL JARGON!)
-# =============================================================================
-
 def generate_artwork_explanation(artist: str, style: str, genre: str) -> Tuple[str, str]:
-    """
-    Generate CNN output → explanation training pair WITHOUT technical jargon
-    
-    Use Case 1: Explain artist/style/genre predictions like an art historian
-    NO mentions of: CNN, model, confidence, neural network, detected, classified
-    """
+    """Generate training pairs for artwork explanation without technical jargon."""
     artist_data = ARTIST_INFO.get(artist, {})
     style_data = STYLE_INFO.get(style, {})
     genre_data = GENRE_INFO.get(genre, {})
@@ -579,20 +560,8 @@ def generate_genre_question(genre: str) -> Tuple[str, str]:
     return question, answer
 
 
-# =============================================================================
-# DATASET CLASS
-# =============================================================================
-
 class CleanArtCriticDataset(Dataset):
-    """
-    Clean Art Critic Dataset - NO technical ML jargon!
-    
-    Generates TWO types of examples:
-    1. Artwork explanations (Use Case 1): Explain artist/style/genre WITHOUT mentioning CNN/confidence
-    2. General art Q&A (Use Case 2): Answer questions about artists, styles, genres
-    
-    Mix: 50% explanations, 50% general Q&A
-    """
+    """Dataset for training art explanation models with mixed explanations and Q&A."""
     
     def __init__(self, tokenizer, max_len: int = 512, size: str = "medium"):
         self.tokenizer = tokenizer
