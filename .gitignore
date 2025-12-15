@@ -21,7 +21,6 @@ data/
 
 # Results
 evaluation_results/
-*.png
 
 # IDE
 .vscode/
