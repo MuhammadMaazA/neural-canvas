@@ -121,7 +121,7 @@ neural-canvas/
 - Slower but higher quality outputs
 
 ### Model 3: The Oracle (API)
-- Llama 3.1 8B via Groq API
+- Llama 3.1 1B via Groq API
 - Real-time inference
 - Highest quality explanations
 - Requires API key
