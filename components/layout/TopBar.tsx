@@ -21,7 +21,7 @@ const TopBar = () => {
   };
 
   return (
-    <header className="fixed top-0 left-16 right-0 z-30 h-14 bg-background/80 backdrop-blur-xl border-b border-border flex items-center justify-between px-6">
+    <header className="h-14 bg-background/80 backdrop-blur-xl border-b border-border flex items-center justify-between px-6 w-full">
       {/* Title */}
       <div className="flex items-center gap-3">
         <h1 className="font-serif text-lg font-semibold">

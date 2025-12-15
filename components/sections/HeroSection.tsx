@@ -1,82 +1,70 @@
-import { motion } from "framer-motion";
-import { X } from "lucide-react";
-import { useState } from "react";
+import { motion, useScroll, useTransform } from "framer-motion";
+import { useRef } from "react";
 
 const HeroSection = () => {
-  const [showMission, setShowMission] = useState(true);
+  const sectionRef = useRef<HTMLElement>(null);
+  
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start start", "end start"]
+  });
+
+  // Zoom effect - starts large, zooms in as you scroll (centered)
+  const scale = useTransform(scrollYProgress, [0, 0.6], [1, 3]);
+  const opacity = useTransform(scrollYProgress, [0, 0.4, 0.8, 1], [1, 1, 0.5, 0]);
+  
+  // Background elements fade out
+  const bgOpacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
+  
+  // Subtitle fades out earlier
+  const subtitleOpacity = useTransform(scrollYProgress, [0, 0.2], [1, 0]);
+  const subtitleY = useTransform(scrollYProgress, [0, 0.2], [0, 50]);
 
   return (
-    <section className="relative py-16 px-6 overflow-hidden">
+    <section 
+      ref={sectionRef}
+      className="relative min-h-screen flex items-center justify-center overflow-hidden"
+    >
       {/* Background gradient orbs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <motion.div 
+        style={{ opacity: bgOpacity }}
+        className="absolute inset-0 overflow-hidden pointer-events-none"
+      >
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-secondary/10 rounded-full blur-3xl animate-breathe" />
         <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-primary/5 rounded-full blur-3xl animate-breathe" style={{ animationDelay: "1.5s" }} />
-      </div>
+      </motion.div>
 
-      <div className="relative max-w-4xl mx-auto text-center">
-        {/* Main Headline */}
-        <motion.h1
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="font-serif text-5xl md:text-7xl font-bold mb-6 leading-tight"
+      {/* Centered container that stays in place during zoom */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <motion.div 
+          style={{ 
+            scale, 
+            opacity,
+            transformOrigin: "center center"
+          }}
+          className="text-center px-6"
         >
-          <span className="text-gradient-ai">Neural</span>{" "}
-          <span className="text-foreground">Canvas</span>
-        </motion.h1>
-
-        {/* Sub-headline */}
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
-          className="text-xl md:text-2xl text-muted-foreground font-light mb-10"
-        >
-          Bridging Human Creativity and Machine Vision
-        </motion.p>
-
-        {/* Mission Statement Card */}
-        {showMission && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-            className="relative glass-panel p-6 max-w-2xl mx-auto"
+          {/* Main Headline - Very large, zooms in on scroll */}
+          <motion.h1
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="font-serif text-7xl md:text-9xl lg:text-[12rem] font-bold leading-none whitespace-nowrap"
           >
-            <button
-              onClick={() => setShowMission(false)}
-              className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              This platform demonstrates a{" "}
-              <span className="text-secondary font-medium">Deep Learning pipeline</span>. 
-              We use a <span className="text-accent font-mono text-xs">CNN</span> trained on WikiArt to{" "}
-              <em>'see'</em> the painting, and two distinct{" "}
-              <span className="text-accent font-mono text-xs">LLMs</span> to{" "}
-              <em>'explain'</em> it. Finally, a{" "}
-              <span className="text-accent font-mono text-xs">Diffusion</span> model reimagines it.{" "}
-              <span className="text-primary">Explore the boundaries of AI Literacy.</span>
-            </p>
-          </motion.div>
-        )}
+            <span className="text-gradient-ai">Neural</span>{" "}
+            <span className="text-foreground">Canvas</span>
+          </motion.h1>
 
-        {/* Scroll indicator */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1, duration: 0.5 }}
-          className="mt-16"
-        >
-          <div className="w-6 h-10 border-2 border-muted-foreground/30 rounded-full mx-auto flex justify-center">
-            <motion.div
-              animate={{ y: [0, 12, 0] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-              className="w-1.5 h-3 bg-secondary rounded-full mt-2"
-            />
-          </div>
+          {/* Sub-headline - fades out early */}
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+            style={{ opacity: subtitleOpacity, y: subtitleY }}
+            className="text-xl md:text-2xl text-muted-foreground font-light mt-8"
+          >
+            Bridging Human Creativity and Machine Vision
+          </motion.p>
         </motion.div>
       </div>
     </section>

@@ -4,8 +4,8 @@ import { useState, useCallback, useEffect } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import TopBar from "@/components/layout/TopBar";
 import HeroSection from "@/components/sections/HeroSection";
+import ModelShowcaseSection from "@/components/sections/ModelShowcaseSection";
 import AnalyzerSection from "@/components/analyzer/AnalyzerSection";
-import GenerativeLabSection from "@/components/sections/GenerativeLabSection";
 import Footer from "@/components/sections/Footer";
 
 // Demo data - Starry Night
@@ -50,11 +50,6 @@ export default function HomePage() {
   const [selectedModel, setSelectedModel] = useState<"scratch" | "distilgpt2" | "hosted">("distilgpt2");
   const [llmOutput, setLlmOutput] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-
-  // Suggested prompt for diffusion
-  const [suggestedPrompt, setSuggestedPrompt] = useState(
-    "A landscape in the style of Van Gogh with vivid swirling skies and bold brushstrokes"
-  );
 
   const handleImageLoad = useCallback(async (imageUrl: string) => {
     setLoadedImage(imageUrl);
@@ -153,6 +148,8 @@ export default function HomePage() {
       <main className="pl-16 pt-14 min-h-screen overflow-x-hidden scrollbar-thin">
         <HeroSection />
         
+        <ModelShowcaseSection />
+        
         <AnalyzerSection
           loadedImage={loadedImage}
           isScanning={isScanning}
@@ -165,11 +162,6 @@ export default function HomePage() {
           onModelChange={setSelectedModel}
           llmOutput={llmOutput}
           isGenerating={isGenerating}
-          devMode={devMode}
-        />
-        
-        <GenerativeLabSection 
-          suggestedPrompt={suggestedPrompt}
           devMode={devMode}
         />
         

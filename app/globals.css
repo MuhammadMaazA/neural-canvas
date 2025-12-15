@@ -67,7 +67,7 @@
 
   .dark {
     /* Neural Canvas - Dark Theme: Clean Slate & Cyan */
-    --background: 222 20% 7%;
+    --background: 0 0% 0%;
     --foreground: 210 15% 85%;
 
     --card: 222 18% 11%;

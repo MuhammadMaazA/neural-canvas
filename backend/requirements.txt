@@ -7,3 +7,6 @@ datasets>=2.14.0
 Pillow>=10.0.0
 numpy>=1.24.0
 requests>=2.31.0
+diffusers>=0.21.0
+realesrgan>=0.3.0
+basicsr>=1.4.0

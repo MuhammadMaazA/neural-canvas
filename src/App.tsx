@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { motion, useScroll, useMotionValueEvent } from "framer-motion";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
@@ -7,8 +8,7 @@ import { QueryClientProviderWrapper } from "@/components/providers/query-provide
 import Sidebar from "@/components/layout/Sidebar";
 import TopBar from "@/components/layout/TopBar";
 import HeroSection from "@/components/sections/HeroSection";
-import AnalyzerSection from "@/components/analyzer/AnalyzerSection";
-import GenerativeLabSection from "@/components/sections/GenerativeLabSection";
+import ModelShowcaseSection from "@/components/sections/ModelShowcaseSection";
 import Footer from "@/components/sections/Footer";
 import ModelArenaPage from "@/src/pages/ModelArenaPage";
 import CNNArenaPage from "@/src/pages/CNNArenaPage";
@@ -16,36 +16,56 @@ import DiffusionLabPage from "@/src/pages/DiffusionLabPage";
 import ESRGANLabPage from "@/src/pages/ESRGANLabPage";
 import NSTLabPage from "@/src/pages/NSTLabPage";
 
-// Demo data - Starry Night
-const DEMO_IMAGE_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/1280px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg";
-
-const DEMO_CNN_RESULTS = {
-  artist: [
-    { label: "Vincent van Gogh", confidence: 87 },
-    { label: "Paul Gauguin", confidence: 6 },
-    { label: "Claude Monet", confidence: 4 },
-  ],
-  style: [
-    { label: "Post-Impressionism", confidence: 92 },
-    { label: "Expressionism", confidence: 5 },
-    { label: "Impressionism", confidence: 2 },
-  ],
-  genre: [
-    { label: "Landscape", confidence: 78 },
-    { label: "Cityscape", confidence: 15 },
-    { label: "Abstract", confidence: 4 },
-  ],
-};
-
-const LLM_OUTPUTS = {
-  scratch: "Input classified. Artist: Van Gogh. Style: Post-Impressionism. The image contains blue swirls and yellow lights. Probability high. This matches training data index 402. Night scene detected. Brush texture: impasto. Color palette: ultramarine, chrome yellow, prussian blue.",
-  distilgpt2: "This masterpiece is undeniably a Post-Impressionist work. The neural network identified the iconic heavy brushstrokes and the turbulent, swirling sky characteristic of Van Gogh's late period. The high contrast between the deep blues and the piercing yellows suggests an emotional, rather than realistic, depiction of the landscape. The cypress tree rises like a dark flame into the night sky, while the village below rests peacefully under the cosmic dance above. This is quintessential Van Gogh — raw emotion rendered in paint.",
-  hosted: "This is Vincent van Gogh's 'The Starry Night' (1889), painted during his stay at the Saint-Paul-de-Mausole asylum in Saint-Rémy-de-Provence. The work exemplifies Post-Impressionism's departure from pure optical observation. Van Gogh employs expressive, swirling brushwork to convey psychological intensity rather than atmospheric accuracy. The dominant ultramarine and cobalt blue palette, punctuated by cadmium yellow impasto stars, creates a visual rhythm that predates Expressionism. The composition balances the vertical cypress flame against horizontal village rooftops, while the turbulent sky suggests cosmic forces beyond human comprehension. This painting represents Van Gogh's synthesis of observed reality and inner emotional truth.",
-};
-
 function App() {
   const [activeSection, setActiveSection] = useState("analyzer");
   const [devMode, setDevMode] = useState(false);
+  const [showNav, setShowNav] = useState(true);
+  const mainRef = useRef<HTMLElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const footerRef = useRef<HTMLDivElement>(null);
+  
+  // Use window scroll for detection
+  const { scrollYProgress } = useScroll();
+
+  // Hide nav when scrolling past hero section, show again near end
+  useMotionValueEvent(scrollYProgress, "change", (latest) => {
+    if (activeSection === "analyzer") {
+      // Hide nav when scrolled past ~10% (past hero section - 25% of hero height)
+      // Show nav again when near the end (~90% or more)
+      setShowNav(latest < 0.1 || latest > 0.9);
+    } else {
+      setShowNav(true);
+    }
+  });
+
+  // Also check on scroll for immediate feedback - using window scroll
+  useEffect(() => {
+    if (activeSection !== "analyzer") {
+      setShowNav(true);
+      return;
+    }
+
+    const handleScroll = () => {
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      const scrollHeight = document.documentElement.scrollHeight;
+      const clientHeight = window.innerHeight;
+      const heroHeight = heroRef.current?.offsetHeight || 800;
+      
+      // Calculate distance from bottom
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      const nearBottom = distanceFromBottom < 500; // Show nav when within 500px of bottom
+      
+      // Hide nav when scrolled past hero section (25% threshold)
+      const pastHero = scrollTop > heroHeight * 0.25;
+      const shouldShow = !pastHero || nearBottom;
+      
+      setShowNav(shouldShow);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll(); // Check initial position
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [activeSection]);
   
   // Debug: log section changes
   useEffect(() => {
@@ -55,113 +75,8 @@ function App() {
   const handleSectionChange = (section: string) => {
     console.log('🔄 Section change requested:', section);
     setActiveSection(section);
+    setShowNav(true); // Show nav when changing sections
   };
-  
-  // Analyzer state
-  const [loadedImage, setLoadedImage] = useState<string | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const [artistPredictions, setArtistPredictions] = useState<{ label: string; confidence: number }[]>([]);
-  const [stylePredictions, setStylePredictions] = useState<{ label: string; confidence: number }[]>([]);
-  const [genrePredictions, setGenrePredictions] = useState<{ label: string; confidence: number }[]>([]);
-  
-  // LLM state
-  const [selectedModel, setSelectedModel] = useState<"scratch" | "distilgpt2" | "hosted">("distilgpt2");
-  const [llmOutput, setLlmOutput] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  // Suggested prompt for diffusion
-  const [suggestedPrompt, setSuggestedPrompt] = useState(
-    "A landscape in the style of Van Gogh with vivid swirling skies and bold brushstrokes"
-  );
-
-  const handleImageLoad = useCallback(async (imageUrl: string) => {
-    setLoadedImage(imageUrl);
-    setIsScanning(true);
-    setLlmOutput("");
-    
-    // Clear previous results
-    setArtistPredictions([]);
-    setStylePredictions([]);
-    setGenrePredictions([]);
-
-    try {
-      // Call Flask API for CNN analysis (using proxy)
-      const response = await fetch('/api/analyze-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl }),
-      });
-      const data = await response.json();
-      
-      setIsScanning(false);
-      setArtistPredictions(data.artist);
-      setStylePredictions(data.style);
-      setGenrePredictions(data.genre);
-      
-      // Start LLM generation - pass predictions to backend
-      setIsGenerating(true);
-      const llmResponse = await fetch('/api/generate-llm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          model: selectedModel,
-          predictions: {
-            artist: data.artist,
-            style: data.style,
-            genre: data.genre
-          }
-        }),
-      });
-      const llmData = await llmResponse.json();
-      setIsGenerating(false);
-      setLlmOutput(llmData.output);
-    } catch (error) {
-      // Fallback to mock data if API fails
-      setIsScanning(false);
-      setArtistPredictions(DEMO_CNN_RESULTS.artist);
-      setStylePredictions(DEMO_CNN_RESULTS.style);
-      setGenrePredictions(DEMO_CNN_RESULTS.genre);
-      
-      setIsGenerating(true);
-      setTimeout(() => {
-        setIsGenerating(false);
-        setLlmOutput(LLM_OUTPUTS[selectedModel]);
-      }, 500);
-    }
-  }, [selectedModel]);
-
-  const handleLoadDemo = useCallback(() => {
-    handleImageLoad(DEMO_IMAGE_URL);
-  }, [handleImageLoad]);
-
-  // Update LLM output when model changes (if already analyzed)
-  useEffect(() => {
-    if (artistPredictions.length > 0) {
-      setLlmOutput("");
-      setIsGenerating(true);
-      fetch('/api/generate-llm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          model: selectedModel,
-          predictions: {
-            artist: artistPredictions,
-            style: stylePredictions,
-            genre: genrePredictions
-          }
-        }),
-      })
-        .then(res => res.json())
-        .then(data => {
-          setIsGenerating(false);
-          setLlmOutput(data.output);
-        })
-        .catch(() => {
-          setIsGenerating(false);
-          setLlmOutput(LLM_OUTPUTS[selectedModel]);
-        });
-    }
-  }, [selectedModel, artistPredictions.length, artistPredictions, stylePredictions, genrePredictions]);
 
   return (
     <QueryClientProviderWrapper>
@@ -169,33 +84,52 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <div className="min-h-screen bg-background">
-            <Sidebar activeSection={activeSection} onSectionChange={handleSectionChange} />
-            <TopBar />
+          <div className="min-h-screen bg-black">
+            <motion.div
+              animate={{ 
+                opacity: showNav ? 1 : 0,
+                x: showNav ? 0 : -100,
+                scale: showNav ? 1 : 0.8,
+                pointerEvents: showNav ? "auto" : "none"
+              }}
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+              className="fixed left-0 top-0 z-50"
+              style={{ visibility: showNav ? "visible" : "hidden" }}
+            >
+              <Sidebar activeSection={activeSection} onSectionChange={handleSectionChange} />
+            </motion.div>
             
-            <main className="pl-16 pt-14 min-h-screen overflow-x-hidden scrollbar-thin">
+            <motion.div
+              animate={{ 
+                opacity: showNav ? 1 : 0,
+                y: showNav ? 0 : -100,
+                scale: showNav ? 1 : 0.9,
+                pointerEvents: showNav ? "auto" : "none"
+              }}
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+              className={`fixed top-0 z-40 transition-all duration-300 ${
+                showNav ? "left-16 right-0" : "left-0 right-0"
+              }`}
+              style={{ visibility: showNav ? "visible" : "hidden" }}
+            >
+              <TopBar />
+            </motion.div>
+            
+            <main 
+              ref={mainRef}
+              className={`min-h-screen overflow-x-hidden scrollbar-thin bg-black transition-all duration-300 ${
+                showNav ? "pl-16 pt-14" : "pl-0 pt-0"
+              }`}
+            >
               {activeSection === "analyzer" && (
                 <>
-                  <HeroSection />
-                  <AnalyzerSection
-                    loadedImage={loadedImage}
-                    isScanning={isScanning}
-                    onImageLoad={handleImageLoad}
-                    onLoadDemo={handleLoadDemo}
-                    artistPredictions={artistPredictions}
-                    stylePredictions={stylePredictions}
-                    genrePredictions={genrePredictions}
-                    selectedModel={selectedModel}
-                    onModelChange={setSelectedModel}
-                    llmOutput={llmOutput}
-                    isGenerating={isGenerating}
-                    devMode={devMode}
-                  />
-                  <GenerativeLabSection 
-                    suggestedPrompt={suggestedPrompt}
-                    devMode={devMode}
-                  />
-                  <Footer />
+                  <div ref={heroRef}>
+                    <HeroSection />
+                  </div>
+                  <ModelShowcaseSection />
+                  <div ref={footerRef}>
+                    <Footer />
+                  </div>
                 </>
               )}
               
