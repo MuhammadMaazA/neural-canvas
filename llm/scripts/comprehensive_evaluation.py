@@ -1,14 +1,7 @@
 #!/usr/bin/env python3
-"""
-Comprehensive LLM Model Evaluation
-===================================
-Includes:
-- Perplexity & Validation Loss
-- BLEU, ROUGE, METEOR scores
-- Hallucination detection (fact-checking against WikiArt)
-- Inference speed (tokens/sec)
-- Qualitative evaluation materials generation
-"""
+\"\"\"
+Comprehensive evaluation including perplexity, BLEU, ROUGE, and hallucination detection.
+\"\"\"
 
 import os
 os.environ['HF_HOME'] = '/cs/student/projects1/2023/muhamaaz/datasets'
