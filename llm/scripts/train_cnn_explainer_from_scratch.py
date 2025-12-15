@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
 """
-Train From-Scratch Model to Explain CNN Outputs
-================================================
-MODEL 1: Custom transformer trained on 3 DATASETS (COURSEWORK REQUIREMENT)
-
-Datasets (Total ~210K samples):
-1. WikiArt (~120K) - Art historical knowledge and terminology
-2. ELI5 (~40K) - Clear AI concept explanations in simple language
-3. OpenAssistant (~50K) - Natural conversational dialogue patterns
-
-This trains your Art Expert model to:
-1. Generate educational explanations about art and AI
-2. Communicate with proper English fluency (from real human text)
-3. Explain CNN outputs in accessible language
+Training script for the from-scratch art expert transformer.
+Uses WikiArt, ELI5, and OpenAssistant datasets for training.
 """
 
 import os
-os.environ['HF_HOME'] = '/cs/student/projects1/2023/muhamaaz/datasets'
-os.environ['HF_DATASETS_CACHE'] = '/cs/student/projects1/2023/muhamaaz/datasets'
-os.environ['TRANSFORMERS_CACHE'] = '/cs/student/projects1/2023/muhamaaz/datasets'
+from pathlib import Path
+
+# Get project root (cross-platform)
+SCRIPT_DIR = Path(__file__).resolve().parent
+LLM_DIR = SCRIPT_DIR.parent
+PROJECT_ROOT = LLM_DIR.parent
+
+# Cross-platform HF cache - only set if server path exists
+if os.path.exists('/cs/student/projects1/2023/muhamaaz/datasets'):
+    os.environ['HF_HOME'] = '/cs/student/projects1/2023/muhamaaz/datasets'
+    os.environ['HF_DATASETS_CACHE'] = '/cs/student/projects1/2023/muhamaaz/datasets'
+    os.environ['TRANSFORMERS_CACHE'] = '/cs/student/projects1/2023/muhamaaz/datasets'
+# else use default HuggingFace cache
 
 import torch
 import torch.nn as nn
@@ -29,7 +28,7 @@ from datetime import datetime
 from tqdm import tqdm
 import numpy as np
 import sys
-sys.path.append('/cs/student/projects1/2023/muhamaaz/neural-canvas')
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from transformers import GPT2Tokenizer, get_cosine_schedule_with_warmup
 from llm.models.art_expert_model import ArtExpertTransformer
@@ -52,8 +51,7 @@ class TrainingConfig:
     DROPOUT = 0.1
     LABEL_SMOOTHING = 0.1
 
-    # Dataset (COURSEWORK: 3 datasets required)
-    # WikiArt (~120K) + ELI5 (~40K) + OpenAssistant (~50K) = ~210K total
+    # Dataset config
     USE_WIKIART = True
     USE_ELI5 = True
     USE_OPENASSISTANT = True
@@ -74,9 +72,21 @@ class TrainingConfig:
     TRAIN_SPLIT = 0.95
     VAL_SPLIT = 0.05
 
-    # Paths
-    CHECKPOINT_DIR = "/cs/student/projects1/2023/muhamaaz/checkpoints/cnn_explainer_from_scratch"
-    LOG_DIR = "/cs/student/projects1/2023/muhamaaz/logs"
+    # Paths (cross-platform)
+    @staticmethod
+    def get_checkpoint_dir():
+        if os.path.exists('/cs/student/projects1/2023/muhamaaz/checkpoints'):
+            return "/cs/student/projects1/2023/muhamaaz/checkpoints/cnn_explainer_from_scratch"
+        return str(PROJECT_ROOT / 'checkpoints' / 'cnn_explainer_from_scratch')
+    
+    @staticmethod
+    def get_log_dir():
+        if os.path.exists('/cs/student/projects1/2023/muhamaaz/logs'):
+            return "/cs/student/projects1/2023/muhamaaz/logs"
+        return str(PROJECT_ROOT / 'logs')
+    
+    CHECKPOINT_DIR = None  # Set dynamically
+    LOG_DIR = None  # Set dynamically
 
     # Hardware
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -271,11 +281,8 @@ def main():
     total_params = sum(p.numel() for p in model.parameters())
     logger.info(f"Total parameters: {total_params/1e6:.1f}M")
 
-    # Load 3 datasets (COURSEWORK REQUIREMENT)
-    logger.info("\nLoading 3 curated art datasets...")
-    logger.info("1. WikiArt: Art historical knowledge and terminology")
-    logger.info("2. ELI5: Clear AI concept explanations")
-    logger.info("3. OpenAssistant: Natural conversational patterns")
+    # Load datasets
+    logger.info("Loading datasets...")
     
     full_dataset = load_combined_art_datasets(
         tokenizer=tokenizer,
@@ -385,10 +392,10 @@ def main():
             best_path = os.path.join(config.CHECKPOINT_DIR, "best_model.pt")
             save_checkpoint(model, optimizer, scheduler, scaler, epoch, val_loss, config, best_path,
                           train_losses, val_losses, val_perplexities)
-            logger.info(f"✓ NEW BEST MODEL - Improved by {improvement:.4f}")
+            logger.info(f"New best model saved (improved by {improvement:.4f})")
         else:
             patience_counter += 1
-            logger.info(f"⚠ No improvement for {patience_counter} epoch(s)")
+            logger.info(f"No improvement for {patience_counter} epoch(s)")
 
             if patience_counter >= config.PATIENCE:
                 logger.info(f"\nEARLY STOPPING")

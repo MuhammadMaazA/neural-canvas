@@ -1,4 +1,4 @@
-"""LLM Module for UCL COMP0220 Coursework"""
+\"\"\"LLM module for art explanation models.\"\"\"
 
-__version__ = "1.0.0"
+__version__ = \"1.0.0\"
 

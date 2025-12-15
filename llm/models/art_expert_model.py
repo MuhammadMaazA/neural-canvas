@@ -1,17 +1,7 @@
-"""
-Art Expert Transformer Model - Optimized for Coursework
-=======================================================
-A 35-50M parameter transformer designed specifically for art commentary and AI literacy
-
-Architecture:
-- 8 layers (depth for understanding)
-- 512 hidden dim (efficient but expressive)
-- 8 attention heads with 2 KV heads (GQA for efficiency)
-- RoPE, RMSNorm, SwiGLU (modern best practices)
-- ~35M parameters (perfect for coursework - trainable in hours not days)
-
-This is model 1: trained from scratch on art + AI literacy datasets
-"""
+\"\"\"
+Custom transformer model for art explanation generation.
+Uses RoPE, GQA, RMSNorm, and SwiGLU activations.
+\"\"\"
 
 import torch
 import torch.nn as nn
@@ -21,7 +11,7 @@ from typing import Optional, Tuple
 
 
 class RMSNorm(nn.Module):
-    """Root Mean Square Normalization - more stable than LayerNorm"""
+    \"\"\"Root Mean Square Normalization.\"\"\"
 
     def __init__(self, dim: int, eps: float = 1e-6):
         super().__init__()

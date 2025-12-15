@@ -1,21 +1,19 @@
-"""
-Model Evaluation and Benchmarking Script
-=========================================
-Evaluates Model 1 (from scratch) and Model 2 (fine-tuned GPT-2) on multiple metrics:
-- Perplexity (primary metric for language models)
-- BLEU score (1-4 grams)
-- ROUGE scores (ROUGE-1, ROUGE-2, ROUGE-L)
-- METEOR score
-- Response quality (length, diversity)
-- Speed (inference time)
-
-For coursework comparison and evaluation
-"""
+\"\"\"
+Evaluation script for LLM models.
+Computes perplexity, BLEU, ROUGE, and other metrics.
+\"\"\"
 
 import os
-os.environ['HF_HOME'] = '/cs/student/projects1/2023/muhamaaz/datasets'
-os.environ['HF_DATASETS_CACHE'] = '/cs/student/projects1/2023/muhamaaz/datasets'
-os.environ['TRANSFORMERS_CACHE'] = '/cs/student/projects1/2023/muhamaaz/datasets'
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+LLM_DIR = SCRIPT_DIR.parent
+PROJECT_ROOT = LLM_DIR.parent
+
+if os.path.exists('/cs/student/projects1/2023/muhamaaz/datasets'):
+    os.environ['HF_HOME'] = '/cs/student/projects1/2023/muhamaaz/datasets'
+    os.environ['HF_DATASETS_CACHE'] = '/cs/student/projects1/2023/muhamaaz/datasets'
+    os.environ['TRANSFORMERS_CACHE'] = '/cs/student/projects1/2023/muhamaaz/datasets'
 
 import torch
 import argparse
@@ -31,7 +29,7 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 
 import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(LLM_DIR))
 
 from models.art_expert_model import create_art_expert_model
 from utils.clean_art_critic_dataset import load_clean_art_critic_dataset
@@ -336,18 +334,30 @@ def plot_comparison(results: Dict, save_path: str):
     print(f"\n✓ Comparison plot saved to: {save_path}")
 
 
+def get_default_path(name):
+    """Get path - prefer local, fallback to server"""
+    local_path = PROJECT_ROOT / name
+    if local_path.exists():
+        return str(local_path)
+    return f"/cs/student/projects1/2023/muhamaaz/{name}"
+
 def main():
+    # Set default paths based on environment
+    default_model1 = get_default_path("checkpoints/cnn_explainer_from_scratch/best_model.pt")
+    default_model2 = get_default_path("checkpoints/model2_cnn_explainer_gpt2medium/best_model_hf")
+    default_output = get_default_path("evaluation_results")
+    
     parser = argparse.ArgumentParser(description="Evaluate LLM Models")
     parser.add_argument(
         "--model1-path",
         type=str,
-        default="/cs/student/projects1/2023/muhamaaz/checkpoints/cnn_explainer_from_scratch/best_model.pt",
+        default=default_model1,
         help="Path to Model 1 checkpoint (from scratch)"
     )
     parser.add_argument(
         "--model2-path",
         type=str,
-        default="/cs/student/projects1/2023/muhamaaz/checkpoints/model2_cnn_explainer_gpt2medium/best_model_hf",
+        default=default_model2,
         help="Path to Model 2 checkpoint (fine-tuned GPT-2)"
     )
     parser.add_argument(
@@ -359,7 +369,7 @@ def main():
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="/cs/student/projects1/2023/muhamaaz/evaluation_results",
+        default=default_output,
         help="Directory to save evaluation results"
     )
     parser.add_argument(

@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
-MODEL 2: Fine-tune Pretrained Model for CNN Explanation
-=========================================================
-Fine-tunes GPT-2 Medium (355M params) to explain CNN art classifications.
-
-Uses same comprehensive dataset as Model 1:
-- CNN output → explanation pairs
-- WikiArt metadata (real artists, styles, genres)
-- Art knowledge database
-- Conversational quality data
-
-This is the FINE-TUNED model for coursework comparison.
+Fine-tuning script for GPT-2 Medium on art explanation task.
 """
 
 # Set cache directories FIRST
 import os
-os.environ['HF_HOME'] = '/cs/student/projects1/2023/muhamaaz/datasets'
-os.environ['HF_DATASETS_CACHE'] = '/cs/student/projects1/2023/muhamaaz/datasets'
-os.environ['TRANSFORMERS_CACHE'] = '/cs/student/projects1/2023/muhamaaz/datasets'
+from pathlib import Path
+
+# Get project root (cross-platform)
+SCRIPT_DIR = Path(__file__).resolve().parent
+LLM_DIR = SCRIPT_DIR.parent
+PROJECT_ROOT = LLM_DIR.parent
+
+# Cross-platform HF cache - only set if server path exists
+if os.path.exists('/cs/student/projects1/2023/muhamaaz/datasets'):
+    os.environ['HF_HOME'] = '/cs/student/projects1/2023/muhamaaz/datasets'
+    os.environ['HF_DATASETS_CACHE'] = '/cs/student/projects1/2023/muhamaaz/datasets'
+    os.environ['TRANSFORMERS_CACHE'] = '/cs/student/projects1/2023/muhamaaz/datasets'
+# else use default HuggingFace cache
 
 import sys
 import torch
@@ -32,8 +32,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-# Add parent directory to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add parent directory to path (cross-platform)
+sys.path.insert(0, str(LLM_DIR))
 
 from utils.cnn_explainer_dataset import load_cnn_explainer_dataset
 
@@ -64,9 +64,21 @@ class FineTuningConfig:
     TRAIN_SPLIT = 0.95
     VAL_SPLIT = 0.05
     
-    # Paths
-    CHECKPOINT_DIR = "/cs/student/projects1/2023/muhamaaz/checkpoints/model2_cnn_explainer_gpt2medium"
-    LOG_DIR = "/cs/student/projects1/2023/muhamaaz/logs"
+    # Paths (cross-platform)
+    @staticmethod
+    def get_checkpoint_dir():
+        if os.path.exists('/cs/student/projects1/2023/muhamaaz/checkpoints'):
+            return "/cs/student/projects1/2023/muhamaaz/checkpoints/model2_cnn_explainer_gpt2medium"
+        return str(PROJECT_ROOT / 'checkpoints' / 'model2_cnn_explainer_gpt2medium')
+    
+    @staticmethod
+    def get_log_dir():
+        if os.path.exists('/cs/student/projects1/2023/muhamaaz/logs'):
+            return "/cs/student/projects1/2023/muhamaaz/logs"
+        return str(PROJECT_ROOT / 'logs')
+    
+    CHECKPOINT_DIR = None  # Set dynamically
+    LOG_DIR = None  # Set dynamically
     
     # Hardware
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"

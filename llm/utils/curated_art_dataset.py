@@ -1,15 +1,6 @@
-"""
-Curated High-Quality Dataset Loader for Art Expert Chatbot
-===========================================================
-
-Three core datasets (coursework requirement):
-1. ART KNOWLEDGE: WikiArt + Best of ArtText + Museum descriptions
-2. AI LITERACY: ELI5 + TruthfulQA + Science Q&A
-3. CONVERSATIONAL: OpenAssistant + Anthropic HH
-
-Quality over quantity - ~200K carefully curated samples
-Better performance than 1M+ poorly filtered samples
-"""
+\"\"\"
+Dataset loaders for art knowledge, ELI5 explanations, and conversational data.
+\"\"\"
 
 import torch
 from torch.utils.data import Dataset
@@ -43,29 +34,23 @@ class TextDataset(Dataset):
         )
 
         tokens = encoding['input_ids'].squeeze(0)
-        return tokens, tokens  # Input and target are the same for LM
+        return tokens, tokens
 
 
-# ==============================================================================
-# DATASET 1: ART KNOWLEDGE
-# ==============================================================================
+# Art knowledge dataset
 
 def load_wikiart_knowledge(max_samples: int = 60000) -> List[str]:
-    """
-    HIGH-QUALITY WikiArt knowledge
-    Creates rich Q&A pairs about art styles, artists, genres
-    """
-    print(f"\n[1/3] Loading WikiArt Art Knowledge ({max_samples:,} samples)...")
+    """Load WikiArt and create Q&A pairs about art styles, artists, genres."""
+    print(f"Loading WikiArt ({max_samples} samples)...")
 
     try:
         dataset = load_dataset("huggan/wikiart", split="train", streaming=True)
-        # Get label mappings for converting IDs to names
         artist_names = dataset.features['artist'].names
         genre_names = dataset.features['genre'].names
         style_names = dataset.features['style'].names
-        print(f"✓ Dataset loaded with {len(artist_names)} artists, {len(style_names)} styles, {len(genre_names)} genres")
+        print(f"Loaded {len(artist_names)} artists, {len(style_names)} styles, {len(genre_names)} genres")
     except Exception as e:
-        print(f"✗ Error loading WikiArt: {e}")
+        print(f"Error loading WikiArt: {e}")
         return []
 
     texts = []
@@ -178,20 +163,15 @@ def load_wikiart_knowledge(max_samples: int = 60000) -> List[str]:
         if len(texts) >= max_samples:
             break
 
-    print(f"✓ Loaded {len(texts):,} WikiArt knowledge samples")
+    print(f"Loaded {len(texts)} WikiArt samples")
     return texts
 
 
 def load_arttext_descriptions(max_samples: int = 20000) -> List[str]:
-    """
-    ArtText dataset - high-quality art descriptions
-    Better than raw captions
-    """
-    print(f"\nLoading ArtText Descriptions ({max_samples:,} samples)...")
+    """Generate art description samples."""
+    print(f"Generating art descriptions ({max_samples} samples)...")
 
-    # Create synthetic high-quality art descriptions
-    # (Since ArtText might not be available, we'll use a curated approach)
-
+    # Generate art descriptions
     styles = ["Impressionism", "Cubism", "Surrealism", "Abstract Expressionism", "Renaissance",
               "Baroque", "Romanticism", "Realism", "Post-Impressionism", "Modernism"]
 
@@ -217,20 +197,15 @@ def load_arttext_descriptions(max_samples: int = 20000) -> List[str]:
 
         texts.append(random.choice(templates))
 
-    print(f"✓ Generated {len(texts):,} art description samples")
+    print(f"Generated {len(texts)} art description samples")
     return texts
 
 
-# ==============================================================================
-# DATASET 2: AI LITERACY & EDUCATION
-# ==============================================================================
+# ELI5 and educational datasets
 
 def load_eli5_ai_focused(max_samples: int = 40000) -> List[str]:
-    """
-    ELI5 (Explain Like I'm Five) - FILTERED for AI/tech topics
-    Perfect for teaching AI literacy in simple terms
-    """
-    print(f"\n[2/3] Loading ELI5 AI Literacy ({max_samples:,} samples)...")
+    """Load ELI5 dataset filtered for AI/tech topics."""
+    print(f"Loading ELI5 ({max_samples} samples)...")
 
     try:
         dataset = load_dataset("eli5_category", split="train", streaming=True)
@@ -290,16 +265,13 @@ def load_eli5_ai_focused(max_samples: int = 40000) -> List[str]:
         if len(texts) >= max_samples:
             break
 
-    print(f"✓ Loaded {len(texts):,} ELI5 samples")
+    print(f"Loaded {len(texts)} ELI5 samples")
     return texts
 
 
 def load_science_qa(max_samples: int = 30000) -> List[str]:
-    """
-    Science Q&A datasets for factual accuracy
-    Helps bot give precise answers
-    """
-    print(f"\nLoading Science Q&A ({max_samples:,} samples)...")
+    """Load SciQ dataset for factual Q&A."""
+    print(f"Loading Science Q&A ({max_samples} samples)...")
 
     try:
         dataset = load_dataset("sciq", split="train")
@@ -329,16 +301,13 @@ def load_science_qa(max_samples: int = 30000) -> List[str]:
 
         texts.append(text)
 
-    print(f"✓ Loaded {len(texts):,} Science Q&A samples")
+    print(f"Loaded {len(texts)} Science Q&A samples")
     return texts
 
 
 def load_truthfulqa(max_samples: int = 5000) -> List[str]:
-    """
-    TruthfulQA - helps model avoid hallucinations
-    Critical for AI literacy (teaching truth vs misconceptions)
-    """
-    print(f"\nLoading TruthfulQA ({max_samples:,} samples)...")
+    """Load TruthfulQA to reduce hallucinations."""
+    print(f"Loading TruthfulQA ({max_samples} samples)...")
 
     try:
         dataset = load_dataset("truthful_qa", "generation", split="validation")
@@ -360,20 +329,15 @@ def load_truthfulqa(max_samples: int = 5000) -> List[str]:
         if len(texts) >= max_samples:
             break
 
-    print(f"✓ Loaded {len(texts):,} TruthfulQA samples")
+    print(f"Loaded {len(texts)} TruthfulQA samples")
     return texts
 
 
-# ==============================================================================
-# DATASET 3: CONVERSATIONAL QUALITY
-# ==============================================================================
+# Conversational datasets
 
 def load_openassistant_conversations(max_samples: int = 50000) -> List[str]:
-    """
-    OpenAssistant - highest quality conversational dataset
-    Human-rated helpful dialogue
-    """
-    print(f"\n[3/3] Loading OpenAssistant Conversations ({max_samples:,} samples)...")
+    """Load OpenAssistant conversational dataset."""
+    print(f"Loading OpenAssistant ({max_samples} samples)...")
 
     try:
         dataset = load_dataset("OpenAssistant/oasst1", split="train")
@@ -401,15 +365,13 @@ def load_openassistant_conversations(max_samples: int = 50000) -> List[str]:
 
         texts.append(formatted)
 
-    print(f"✓ Loaded {len(texts):,} OpenAssistant dialogues")
+    print(f"Loaded {len(texts)} OpenAssistant dialogues")
     return texts
 
 
 def load_anthropic_hh(max_samples: int = 30000) -> List[str]:
-    """
-    Anthropic Human Feedback - high quality, helpful responses
-    """
-    print(f"\nLoading Anthropic HH ({max_samples:,} samples)...")
+    """Load Anthropic HH dataset."""
+    print(f"Loading Anthropic HH ({max_samples} samples)...")
 
     try:
         dataset = load_dataset("Anthropic/hh-rlhf", split="train", streaming=True)
@@ -431,13 +393,11 @@ def load_anthropic_hh(max_samples: int = 30000) -> List[str]:
         chosen = chosen.replace('Human:', '\nHuman:').replace('Assistant:', '\nAssistant:')
         texts.append(chosen)
 
-    print(f"✓ Loaded {len(texts):,} Anthropic HH samples")
+    print(f"Loaded {len(texts)} Anthropic HH samples")
     return texts
 
 
-# ==============================================================================
-# MAIN LOADER
-# ==============================================================================
+# Main loader
 
 def load_curated_art_datasets(
     art_knowledge: int = 120000,
@@ -543,19 +503,10 @@ def load_combined_art_datasets(
     use_openassistant: bool = True
 ) -> Dataset:
     """
-    Load and combine 3 datasets for coursework requirement.
-    
-    COURSEWORK REQUIREMENT: "One of them should be trained from scratch using 3 different datasets"
-    
-    This function loads:
-    1. WikiArt (~120K) - Art historical knowledge and terminology
-    2. ELI5 (~40K) - Clear AI concept explanations
-    3. OpenAssistant (~50K) - Natural conversational patterns
-    
-    Total: ~210K real human-written samples
+    Load and combine WikiArt, ELI5, and OpenAssistant datasets.
     
     Args:
-        tokenizer: Tokenizer to use for encoding text
+        tokenizer: Tokenizer for encoding text
         max_len: Maximum sequence length
         use_wikiart: Include WikiArt dataset
         use_eli5: Include ELI5 dataset
@@ -564,49 +515,28 @@ def load_combined_art_datasets(
     Returns:
         TextDataset with combined samples
     """
-    print("=" * 80)
-    print("LOADING 3 DATASETS (COURSEWORK REQUIREMENT)")
-    print("=" * 80)
-    print("Requirement: Train from scratch using 3 different datasets")
-    print("=" * 80)
+    print("Loading datasets...")
     
     all_texts = []
     
-    # Dataset 1: WikiArt Knowledge
     if use_wikiart:
-        print("\n[Dataset 1/3] WikiArt Art Knowledge...")
         wikiart_texts = load_wikiart_knowledge(max_samples=120000)
         all_texts.extend(wikiart_texts)
-        print(f"✓ Loaded {len(wikiart_texts):,} WikiArt samples")
+        print(f"WikiArt: {len(wikiart_texts)} samples")
     
-    # Dataset 2: ELI5 AI Literacy
     if use_eli5:
-        print("\n[Dataset 2/3] ELI5 AI Explanations...")
         eli5_texts = load_eli5_ai_focused(max_samples=40000)
         all_texts.extend(eli5_texts)
-        print(f"✓ Loaded {len(eli5_texts):,} ELI5 samples")
+        print(f"ELI5: {len(eli5_texts)} samples")
     
-    # Dataset 3: OpenAssistant Conversations
     if use_openassistant:
-        print("\n[Dataset 3/3] OpenAssistant Conversations...")
         oa_texts = load_openassistant_conversations(max_samples=50000)
         all_texts.extend(oa_texts)
-        print(f"✓ Loaded {len(oa_texts):,} OpenAssistant samples")
+        print(f"OpenAssistant: {len(oa_texts)} samples")
     
-    # Shuffle to mix all datasets
     random.shuffle(all_texts)
+    print(f"Total: {len(all_texts)} samples")
     
-    # Print summary
-    print("\n" + "=" * 80)
-    print("DATASET COMBINATION COMPLETE")
-    print("=" * 80)
-    print(f"Total Combined Samples: {len(all_texts):,}")
-    print(f"  - WikiArt:       {'✓' if use_wikiart else '✗'}")
-    print(f"  - ELI5:          {'✓' if use_eli5 else '✗'}")
-    print(f"  - OpenAssistant: {'✓' if use_openassistant else '✗'}")
-    print("=" * 80)
-    
-    # Create tokenized dataset
     dataset = TextDataset(all_texts, tokenizer, max_len)
     return dataset
 

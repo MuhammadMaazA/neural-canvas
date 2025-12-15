@@ -1,13 +1,6 @@
-"""
-CNN Explainer Dataset - Comprehensive Training Data
-=====================================================
-Combines:
-1. Real WikiArt metadata (artists, styles, genres with rich descriptions)
-2. CNN output → explanation pairs (learning to explain predictions)
-3. High-quality conversational data (for coherent sentence generation)
-
-This creates the BEST possible training data for explaining CNN art classifications.
-"""
+\"\"\"
+Dataset for training models to explain CNN art classifications.
+\"\"\"
 
 import os
 os.environ['HF_HOME'] = '/cs/student/projects1/2023/muhamaaz/datasets'
@@ -23,10 +16,7 @@ from tqdm import tqdm
 import re
 
 
-# =============================================================================
-# RICH ART KNOWLEDGE DATABASE
-# =============================================================================
-# This contains REAL information about artists, styles, and genres from WikiArt
+# Art knowledge database
 
 ARTIST_INFO = {
     "Vincent van Gogh": {
