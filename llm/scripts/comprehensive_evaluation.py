@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-\"\"\"
+"""
 Comprehensive evaluation including perplexity, BLEU, ROUGE, and hallucination detection.
-\"\"\"
+"""
 
 import os
 os.environ['HF_HOME'] = '/cs/student/projects1/2023/muhamaaz/datasets'
@@ -391,9 +391,7 @@ def main():
 
     results = {}
 
-    # ===========================================
     # Model 1 Evaluation
-    # ===========================================
     print("\n" + "="*80)
     print("EVALUATING MODEL 1 (From Scratch - 56M)")
     print("="*80 + "\n")
@@ -404,18 +402,18 @@ def main():
     model1 = create_art_expert_model(tokenizer.vocab_size, "base").to(device)
     model1.load_state_dict(checkpoint['model_state_dict'])
     model1.eval()
-    print("✓ Model 1 loaded\n")
+    print("Model 1 loaded\n")
 
     # Inference speed
     print("[1/2] Measuring inference speed...")
     speed1 = measure_inference_speed(model1, tokenizer, num_iterations=20, device=device, is_custom=True)
-    print(f"✓ Avg speed: {speed1['avg_tokens_per_sec']:.2f} tokens/sec")
+    print(f"Avg speed: {speed1['avg_tokens_per_sec']:.2f} tokens/sec")
 
     # Hallucination detection
     print("\n[2/2] Detecting hallucinations...")
     halluc1 = evaluate_hallucinations(model1, tokenizer, num_samples=50, device=device, is_custom=True)
-    print(f"✓ Hallucination score: {halluc1['avg_hallucination_score']:.4f}")
-    print(f"✓ Error rate: {halluc1['error_rate']:.2f} errors per sample")
+    print(f"Hallucination score: {halluc1['avg_hallucination_score']:.4f}")
+    print(f"Error rate: {halluc1['error_rate']:.2f} errors per sample")
 
     results['Model 1 (From Scratch)'] = {
         'inference_speed': speed1,
@@ -425,9 +423,7 @@ def main():
     del model1
     torch.cuda.empty_cache()
 
-    # ===========================================
     # Model 2 Evaluation
-    # ===========================================
     print("\n" + "="*80)
     print("EVALUATING MODEL 2 (Fine-tuned GPT-2 - 355M)")
     print("="*80 + "\n")
@@ -436,18 +432,18 @@ def main():
     print(f"Loading from {model2_path}...")
     model2 = AutoModelForCausalLM.from_pretrained(model2_path).to(device)
     model2.eval()
-    print("✓ Model 2 loaded\n")
+    print("Model 2 loaded\n")
 
     # Inference speed
     print("[1/2] Measuring inference speed...")
     speed2 = measure_inference_speed(model2, tokenizer, num_iterations=20, device=device, is_custom=False)
-    print(f"✓ Avg speed: {speed2['avg_tokens_per_sec']:.2f} tokens/sec")
+    print(f"Avg speed: {speed2['avg_tokens_per_sec']:.2f} tokens/sec")
 
     # Hallucination detection
     print("\n[2/2] Detecting hallucinations...")
     halluc2 = evaluate_hallucinations(model2, tokenizer, num_samples=50, device=device, is_custom=False)
-    print(f"✓ Hallucination score: {halluc2['avg_hallucination_score']:.4f}")
-    print(f"✓ Error rate: {halluc2['error_rate']:.2f} errors per sample")
+    print(f"Hallucination score: {halluc2['avg_hallucination_score']:.4f}")
+    print(f"Error rate: {halluc2['error_rate']:.2f} errors per sample")
 
     results['Model 2 (Fine-tuned GPT-2)'] = {
         'inference_speed': speed2,
@@ -457,9 +453,7 @@ def main():
     del model2
     torch.cuda.empty_cache()
 
-    # ===========================================
     # Comparison Summary
-    # ===========================================
     print("\n" + "="*80)
     print("COMPREHENSIVE EVALUATION RESULTS")
     print("="*80 + "\n")
@@ -486,12 +480,12 @@ def main():
     results_file = os.path.join(output_dir, "comprehensive_evaluation.json")
     with open(results_file, 'w') as f:
         json.dump(results, f, indent=2)
-    print(f"✓ Results saved to: {results_file}")
+    print(f"Results saved to: {results_file}")
 
     qual_file = os.path.join(output_dir, "qualitative_evaluation_materials.json")
     with open(qual_file, 'w') as f:
         json.dump(qual_materials, f, indent=2)
-    print(f"✓ Qualitative materials saved to: {qual_file}")
+    print(f"Qualitative materials saved to: {qual_file}")
 
     print("\n" + "="*80)
     print("COMPREHENSIVE EVALUATION COMPLETE")

@@ -1,6 +1,6 @@
-\"\"\"
+"""
 Dataset for training models to explain CNN art classifications.
-\"\"\"
+"""
 
 import os
 os.environ['HF_HOME'] = '/cs/student/projects1/2023/muhamaaz/datasets'
@@ -378,15 +378,9 @@ GENRE_INFO = {
 }
 
 
-# =============================================================================
-# DATASET GENERATION FUNCTIONS
-# =============================================================================
-
 def generate_cnn_explanation(artist: str, style: str, genre: str, 
                              artist_conf: float, style_conf: float, genre_conf: float) -> Tuple[str, str]:
-    """
-    Generate a CNN output → explanation training pair with RICH context
-    """
+    """Generate a CNN output to explanation training pair with rich context."""
     # Get detailed info if available
     artist_data = ARTIST_INFO.get(artist, {})
     style_data = STYLE_INFO.get(style, {})
@@ -549,7 +543,7 @@ def load_wikiart_for_training(max_samples: int = 50000) -> List[str]:
         
         texts.append(random.choice(templates))
     
-    print(f"✓ Loaded {len(texts):,} WikiArt samples")
+    print(f"Loaded {len(texts):,} WikiArt samples")
     return texts
 
 
@@ -599,7 +593,7 @@ def load_conversational_quality(max_samples: int = 30000) -> List[str]:
     except Exception as e:
         print(f"Anthropic HH not available: {e}")
     
-    print(f"✓ Loaded {len(texts):,} conversational samples")
+    print(f"Loaded {len(texts):,} conversational samples")
     return texts
 
 
@@ -652,13 +646,13 @@ class CNNExplainerDataset(Dataset):
             )
             all_texts.append(f"{input_text}\n\n{target_text}")
         
-        print(f"✓ Generated {num_explanation_samples:,} explanation pairs")
+        print(f"Generated {num_explanation_samples:,} explanation pairs")
         
         # 2. Art knowledge from database
         print(f"\n[2/4] Generating rich art knowledge ({num_art_knowledge_samples:,})...")
         for _ in tqdm(range(num_art_knowledge_samples), desc="Art Knowledge"):
             all_texts.append(generate_art_knowledge_sample())
-        print(f"✓ Generated {num_art_knowledge_samples:,} art knowledge samples")
+        print(f"Generated {num_art_knowledge_samples:,} art knowledge samples")
         
         # 3. WikiArt metadata
         print(f"\n[3/4] Loading WikiArt metadata...")
@@ -770,5 +764,5 @@ if __name__ == "__main__":
     print("\nOUTPUT:")
     print(output_text)
     
-    print("\n✓ Dataset generator working correctly!")
+    print("\nDataset generator working correctly!")
 

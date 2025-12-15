@@ -575,10 +575,8 @@ class CleanArtCriticDataset(Dataset):
         }
         self.total_examples = sizes.get(size, 20_000)
         
-        print(f"\n🎨 Generating Clean Art Critic Dataset ({size})")
+        print(f"\nGenerating Art Critic Dataset ({size})")
         print(f"   Target size: {self.total_examples:,} examples")
-        print(f"   Mix: 50% artwork explanations + 50% general Q&A")
-        print(f"   NO technical jargon (CNN, confidence, model, etc.)")
         
         # Get all artists, styles, genres
         self.artists = list(ARTIST_INFO.keys())
@@ -589,7 +587,7 @@ class CleanArtCriticDataset(Dataset):
         self.examples = []
         self._generate_dataset()
         
-        print(f"✅ Generated {len(self.examples):,} training examples\n")
+        print(f"Generated {len(self.examples):,} training examples\n")
     
     def _generate_dataset(self):
         """Generate all training examples"""
@@ -657,10 +655,6 @@ def load_clean_art_critic_dataset(tokenizer, max_len: int = 512, size: str = "me
     return CleanArtCriticDataset(tokenizer, max_len, size)
 
 
-# =============================================================================
-# TEST FUNCTION
-# =============================================================================
-
 def test_examples():
     """Test a few examples to verify quality"""
     print("\n" + "="*80)
@@ -668,28 +662,28 @@ def test_examples():
     print("="*80 + "\n")
     
     # Test artwork explanation
-    print("📝 EXAMPLE 1: Artwork Explanation (Use Case 1)")
+    print("EXAMPLE 1: Artwork Explanation")
     print("-" * 80)
     prompt1, response1 = generate_artwork_explanation("Vincent van Gogh", "Post-Impressionism", "Landscape")
     print(f"PROMPT:\n{prompt1}\n")
     print(f"RESPONSE:\n{response1}\n")
     
     # Test artist question
-    print("\n📝 EXAMPLE 2: Artist Question (Use Case 2)")
+    print("\nEXAMPLE 2: Artist Question")
     print("-" * 80)
     prompt2, response2 = generate_artist_question("Pablo Picasso")
     print(f"PROMPT:\n{prompt2}\n")
     print(f"RESPONSE:\n{response2}\n")
     
     # Test style question
-    print("\n📝 EXAMPLE 3: Style Question (Use Case 2)")
+    print("\nEXAMPLE 3: Style Question")
     print("-" * 80)
     prompt3, response3 = generate_style_question("Impressionism")
     print(f"PROMPT:\n{prompt3}\n")
     print(f"RESPONSE:\n{response3}\n")
     
     print("="*80)
-    print("✅ All examples generated without technical ML jargon!")
+    print("All examples generated successfully!")
     print("="*80 + "\n")
 
 

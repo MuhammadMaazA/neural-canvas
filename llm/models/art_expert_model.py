@@ -1,7 +1,7 @@
-\"\"\"
+"""
 Custom transformer model for art explanation generation.
 Uses RoPE, GQA, RMSNorm, and SwiGLU activations.
-\"\"\"
+"""
 
 import torch
 import torch.nn as nn
@@ -11,7 +11,7 @@ from typing import Optional, Tuple
 
 
 class RMSNorm(nn.Module):
-    \"\"\"Root Mean Square Normalization.\"\"\"
+    """Root Mean Square Normalization."""
 
     def __init__(self, dim: int, eps: float = 1e-6):
         super().__init__()

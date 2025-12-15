@@ -444,7 +444,7 @@ def load_curated_art_datasets(
         from .rich_art_knowledge import load_curated_art_knowledge
         art_texts.extend(load_curated_art_knowledge(max_samples=int(art_knowledge * 0.3)))  # 30% rich knowledge
     except:
-        print("⚠ Rich art knowledge module not found, using WikiArt only")
+        print("Rich art knowledge module not found, using WikiArt only")
 
     all_texts.extend(art_texts)
     stats['art_knowledge'] = len(art_texts)

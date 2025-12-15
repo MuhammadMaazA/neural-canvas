@@ -1,7 +1,7 @@
-\"\"\"
+"""
 Evaluation script for LLM models.
 Computes perplexity, BLEU, ROUGE, and other metrics.
-\"\"\"
+"""
 
 import os
 from pathlib import Path
@@ -70,7 +70,7 @@ def load_model1(checkpoint_path: str, device: str):
     model = model.to(device)
     model.eval()
 
-    print(f"✓ Model 1 loaded ({sum(p.numel() for p in model.parameters())/1e6:.1f}M params)")
+    print(f"Model 1 loaded ({sum(p.numel() for p in model.parameters())/1e6:.1f}M params)")
     return model, tokenizer
 
 
@@ -86,7 +86,7 @@ def load_model2(model_path: str, device: str):
     model = model.to(device)
     model.eval()
 
-    print(f"✓ Model 2 loaded ({sum(p.numel() for p in model.parameters())/1e6:.1f}M params)")
+    print(f"Model 2 loaded ({sum(p.numel() for p in model.parameters())/1e6:.1f}M params)")
     return model, tokenizer
 
 
@@ -331,7 +331,7 @@ def plot_comparison(results: Dict, save_path: str):
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.close()
-    print(f"\n✓ Comparison plot saved to: {save_path}")
+    print(f"\nComparison plot saved to: {save_path}")
 
 
 def get_default_path(name):
@@ -411,9 +411,7 @@ def main():
 
     results = {}
 
-    # =========================================================================
-    # EVALUATE MODEL 1 (From Scratch)
-    # =========================================================================
+    # Evaluate Model 1 (From Scratch)
     print("\n" + "=" * 80)
     print("EVALUATING MODEL 1 (From Scratch - 56M params)")
     print("=" * 80)
@@ -425,24 +423,24 @@ def main():
     # [1/3] Perplexity
     print("\n[1/3] Calculating perplexity...")
     ppl1, loss1 = calculate_perplexity(model1, dataloader1, args.device, is_custom_model=True)
-    print(f"✓ Perplexity: {ppl1:.2f} (Loss: {loss1:.4f})")
+    print(f"Perplexity: {ppl1:.2f} (Loss: {loss1:.4f})")
 
     # [2/3] Generation quality
     print("\n[2/3] Measuring generation quality...")
     prompts = create_test_prompts()
     gen_quality1, generated_texts1 = measure_generation_quality(model1, tokenizer1, prompts, args.device, is_custom=True)
-    print(f"✓ Avg response length: {gen_quality1['avg_response_length']:.1f} words")
-    print(f"✓ Vocab diversity: {gen_quality1['vocab_diversity']:.3f}")
-    print(f"✓ Avg generation time: {gen_quality1['avg_generation_time']:.3f}s")
+    print(f"Avg response length: {gen_quality1['avg_response_length']:.1f} words")
+    print(f"Vocab diversity: {gen_quality1['vocab_diversity']:.3f}")
+    print(f"Avg generation time: {gen_quality1['avg_generation_time']:.3f}s")
 
     # [3/3] NLP Metrics (BLEU, ROUGE)
     print("\n[3/3] Calculating NLP metrics (BLEU, ROUGE)...")
     # Use prompts as references for this simple test
     nlp_metrics1 = calculate_nlp_metrics(prompts, generated_texts1)
     if NLTK_AVAILABLE:
-        print(f"✓ BLEU-4: {nlp_metrics1.get('bleu-4', 0):.4f}")
+        print(f"BLEU-4: {nlp_metrics1.get('bleu-4', 0):.4f}")
     if ROUGE_AVAILABLE:
-        print(f"✓ ROUGE-L: {nlp_metrics1.get('rouge-L', 0):.4f}")
+        print(f"ROUGE-L: {nlp_metrics1.get('rouge-L', 0):.4f}")
 
     results['Model 1 (From Scratch)'] = {
         'perplexity': ppl1,
@@ -452,9 +450,7 @@ def main():
         'parameters': sum(p.numel() for p in model1.parameters()) / 1e6
     }
 
-    # =========================================================================
-    # EVALUATE MODEL 2 (Fine-tuned GPT-2)
-    # =========================================================================
+    # Evaluate Model 2 (Fine-tuned GPT-2)
     print("\n" + "=" * 80)
     print("EVALUATING MODEL 2 (Fine-tuned GPT-2 Medium - 355M params)")
     print("=" * 80)
@@ -465,22 +461,22 @@ def main():
     # [1/3] Perplexity
     print("\n[1/3] Calculating perplexity...")
     ppl2, loss2 = calculate_perplexity(model2, dataloader2, args.device, is_custom_model=False)
-    print(f"✓ Perplexity: {ppl2:.2f} (Loss: {loss2:.4f})")
+    print(f"Perplexity: {ppl2:.2f} (Loss: {loss2:.4f})")
 
     # [2/3] Generation quality
     print("\n[2/3] Measuring generation quality...")
     gen_quality2, generated_texts2 = measure_generation_quality(model2, tokenizer2, prompts, args.device, is_custom=False)
-    print(f"✓ Avg response length: {gen_quality2['avg_response_length']:.1f} words")
-    print(f"✓ Vocab diversity: {gen_quality2['vocab_diversity']:.3f}")
-    print(f"✓ Avg generation time: {gen_quality2['avg_generation_time']:.3f}s")
+    print(f"Avg response length: {gen_quality2['avg_response_length']:.1f} words")
+    print(f"Vocab diversity: {gen_quality2['vocab_diversity']:.3f}")
+    print(f"Avg generation time: {gen_quality2['avg_generation_time']:.3f}s")
 
     # [3/3] NLP Metrics (BLEU, ROUGE)
     print("\n[3/3] Calculating NLP metrics (BLEU, ROUGE)...")
     nlp_metrics2 = calculate_nlp_metrics(prompts, generated_texts2)
     if NLTK_AVAILABLE:
-        print(f"✓ BLEU-4: {nlp_metrics2.get('bleu-4', 0):.4f}")
+        print(f"BLEU-4: {nlp_metrics2.get('bleu-4', 0):.4f}")
     if ROUGE_AVAILABLE:
-        print(f"✓ ROUGE-L: {nlp_metrics2.get('rouge-L', 0):.4f}")
+        print(f"ROUGE-L: {nlp_metrics2.get('rouge-L', 0):.4f}")
 
     results['Model 2 (Fine-tuned GPT-2)'] = {
         'perplexity': ppl2,
@@ -490,9 +486,7 @@ def main():
         'parameters': sum(p.numel() for p in model2.parameters()) / 1e6
     }
 
-    # =========================================================================
-    # COMPARISON SUMMARY
-    # =========================================================================
+    # Comparison summary
     print("\n" + "=" * 80)
     print("EVALUATION RESULTS - COMPARISON")
     print("=" * 80)
@@ -521,35 +515,35 @@ def main():
     # Determine winner
     print("\nKEY INSIGHTS:")
     if ppl1 < ppl2:
-        print(f"✓ Model 1 has LOWER perplexity ({ppl1:.2f} vs {ppl2:.2f}) - better language modeling")
+        print(f"Model 1 has LOWER perplexity ({ppl1:.2f} vs {ppl2:.2f}) - better language modeling")
     else:
-        print(f"✓ Model 2 has LOWER perplexity ({ppl2:.2f} vs {ppl1:.2f}) - better language modeling")
+        print(f"Model 2 has LOWER perplexity ({ppl2:.2f} vs {ppl1:.2f}) - better language modeling")
 
     if NLTK_AVAILABLE:
         bleu4_1 = nlp_metrics1.get('bleu-4', 0)
         bleu4_2 = nlp_metrics2.get('bleu-4', 0)
         if bleu4_1 > bleu4_2:
-            print(f"✓ Model 1 has HIGHER BLEU-4 score ({bleu4_1:.4f} vs {bleu4_2:.4f}) - better generation quality")
+            print(f"Model 1 has HIGHER BLEU-4 score ({bleu4_1:.4f} vs {bleu4_2:.4f}) - better generation quality")
         else:
-            print(f"✓ Model 2 has HIGHER BLEU-4 score ({bleu4_2:.4f} vs {bleu4_1:.4f}) - better generation quality")
+            print(f"Model 2 has HIGHER BLEU-4 score ({bleu4_2:.4f} vs {bleu4_1:.4f}) - better generation quality")
 
     if ROUGE_AVAILABLE:
         rougeL_1 = nlp_metrics1.get('rouge-L', 0)
         rougeL_2 = nlp_metrics2.get('rouge-L', 0)
         if rougeL_1 > rougeL_2:
-            print(f"✓ Model 1 has HIGHER ROUGE-L score ({rougeL_1:.4f} vs {rougeL_2:.4f})")
+            print(f"Model 1 has HIGHER ROUGE-L score ({rougeL_1:.4f} vs {rougeL_2:.4f})")
         else:
-            print(f"✓ Model 2 has HIGHER ROUGE-L score ({rougeL_2:.4f} vs {rougeL_1:.4f})")
+            print(f"Model 2 has HIGHER ROUGE-L score ({rougeL_2:.4f} vs {rougeL_1:.4f})")
 
     if gen_quality1['vocab_diversity'] > gen_quality2['vocab_diversity']:
-        print(f"✓ Model 1 has MORE diverse vocabulary ({gen_quality1['vocab_diversity']:.3f} vs {gen_quality2['vocab_diversity']:.3f})")
+        print(f"Model 1 has MORE diverse vocabulary ({gen_quality1['vocab_diversity']:.3f} vs {gen_quality2['vocab_diversity']:.3f})")
     else:
-        print(f"✓ Model 2 has MORE diverse vocabulary ({gen_quality2['vocab_diversity']:.3f} vs {gen_quality1['vocab_diversity']:.3f})")
+        print(f"Model 2 has MORE diverse vocabulary ({gen_quality2['vocab_diversity']:.3f} vs {gen_quality1['vocab_diversity']:.3f})")
 
     if gen_quality1['avg_generation_time'] < gen_quality2['avg_generation_time']:
-        print(f"✓ Model 1 is FASTER ({gen_quality1['avg_generation_time']:.3f}s vs {gen_quality2['avg_generation_time']:.3f}s)")
+        print(f"Model 1 is FASTER ({gen_quality1['avg_generation_time']:.3f}s vs {gen_quality2['avg_generation_time']:.3f}s)")
     else:
-        print(f"✓ Model 2 is FASTER ({gen_quality2['avg_generation_time']:.3f}s vs {gen_quality1['avg_generation_time']:.3f}s)")
+        print(f"Model 2 is FASTER ({gen_quality2['avg_generation_time']:.3f}s vs {gen_quality1['avg_generation_time']:.3f}s)")
 
     # Save results
     results_file = os.path.join(args.output_dir, "evaluation_results.json")
@@ -572,7 +566,7 @@ def main():
                     serializable_results[k][metric_name] = float(metric_value)
 
         json.dump(serializable_results, f, indent=2)
-    print(f"\n✓ Results saved to: {results_file}")
+    print(f"\nResults saved to: {results_file}")
 
     # Create comparison plot
     plot_path = os.path.join(args.output_dir, "model_comparison.png")

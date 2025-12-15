@@ -126,14 +126,14 @@ def save_checkpoint(model, tokenizer, optimizer, scheduler, scaler, epoch, loss,
         }
     }
     torch.save(checkpoint, filepath)
-    logging.info(f"✓ Saved checkpoint: {filepath}")
+    logging.info(f"Saved checkpoint: {filepath}")
     
     # Also save in HuggingFace format for easy loading
     if save_hf:
         hf_path = filepath.replace('.pt', '_hf')
         model.save_pretrained(hf_path)
         tokenizer.save_pretrained(hf_path)
-        logging.info(f"✓ Saved HuggingFace format: {hf_path}")
+        logging.info(f"Saved HuggingFace format: {hf_path}")
 
 
 def load_checkpoint(filepath: str):
@@ -420,10 +420,10 @@ def main():
             save_checkpoint(model, tokenizer, optimizer, scheduler, scaler, epoch, val_loss, config, best_path,
                           train_losses, val_losses, val_perplexities, save_hf=True)
             
-            logger.info(f"✓ NEW BEST MODEL - Improved by {improvement:.4f}")
+            logger.info(f"NEW BEST MODEL - Improved by {improvement:.4f}")
         else:
             patience_counter += 1
-            logger.info(f"⚠ No improvement for {patience_counter} epoch(s)")
+            logger.info(f"No improvement for {patience_counter} epoch(s)")
             
             if patience_counter >= config.PATIENCE:
                 logger.info(f"\nEARLY STOPPING - No improvement for {config.PATIENCE} epochs")
